@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   backend:
-    name: Backend (lint, test, build)
+    name: Backend (lint, unit + e2e tests, build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -27,7 +27,8 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
       - run: npm run lint
-      - run: npm test -- --passWithNoTests
+      - run: npm test
+      - run: npm run test:e2e
       - run: npm run build
 
   frontend:
