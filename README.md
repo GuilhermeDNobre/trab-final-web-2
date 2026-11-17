@@ -49,6 +49,9 @@ Scripts disponíveis:
 | `npm run start:prod` | Roda a versão compilada                 |
 | `npm run lint`       | Verifica o código com o oxlint          |
 | `npm test`           | Roda os testes                          |
+| `npm run seed`       | Cria índices, o admin e 10 produtos de exemplo |
+
+O seed **substitui todos os produtos** da coleção pelos de exemplo (3 deles esgotados) e cria ou atualiza o admin com `ADMIN_EMAIL` e `ADMIN_PASSWORD`. Use apenas em ambiente de desenvolvimento.
 
 ### Frontend
 
@@ -80,6 +83,8 @@ A API fica em `http://localhost:3000` e o banco em `mongodb://localhost:27017/ge
 | `JWT_EXPIRES_IN` | Validade do token                                              | `1d`                            |
 | `PORT`           | Porta da API                                                   | `3000`                          |
 | `CORS_ORIGIN`    | Origem permitida do frontend                                   | `http://localhost:5173`         |
+| `ADMIN_EMAIL`    | E-mail do admin criado pelo `npm run seed`                     | `admin@geanbebidas.com`         |
+| `ADMIN_PASSWORD` | Senha do admin criado pelo `npm run seed`                      | uma senha forte                 |
 
 No Atlas, mantenha o nome do banco (`gean-bebidas`) logo antes do `?` na URI. Sem ele o Mongo usa o banco `test`.
 
@@ -88,6 +93,27 @@ No Atlas, mantenha o nome do banco (`gean-bebidas`) logo antes do `?` na URI. Se
 | Variável       | Descrição              | Exemplo                 |
 | -------------- | ---------------------- | ----------------------- |
 | `VITE_API_URL` | URL base da API        | `http://localhost:3000` |
+
+## API
+
+A documentação completa e interativa está no Swagger: **`http://localhost:3000/docs`** (JSON em `/docs-json`).
+Para testar as rotas protegidas, faça login em `POST /auth/login`, copie o `token` e clique em **Authorize** no Swagger.
+
+Rotas protegidas exigem o header `Authorization: Bearer <token>`. Sem token válido, respondem `401`.
+
+| Método | Rota                          | Acesso    | Descrição                                                                 |
+| ------ | ----------------------------- | --------- | ------------------------------------------------------------------------- |
+| GET    | `/health`                     | Público   | Estado da API e da conexão com o banco                                    |
+| GET    | `/products`                   | Público   | Lista só produtos `available`. Filtros: `?category=` e `?search=` (nome)  |
+| GET    | `/products/:id`               | Público   | Detalhe de um produto `available` (esgotado retorna 404)                  |
+| POST   | `/auth/login`                 | Público   | Recebe `{ email, password }` e retorna `{ token }`                        |
+| GET    | `/admin/products`             | Protegido | Lista todos os produtos, inclusive esgotados                              |
+| POST   | `/admin/products`             | Protegido | Cria produto                                                              |
+| PUT    | `/admin/products/:id`         | Protegido | Atualiza produto                                                          |
+| PATCH  | `/admin/products/:id/status`  | Protegido | Altera o status (`available` ou `out-of-stock`)                           |
+| DELETE | `/admin/products/:id`         | Protegido | Remove produto                                                            |
+
+Categorias válidas: `beers`, `spirits`, `soft-drinks`, `snacks`, `ice`.
 
 ## Fluxo de trabalho
 
