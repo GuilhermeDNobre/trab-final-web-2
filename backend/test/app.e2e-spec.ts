@@ -1,0 +1,365 @@
+import type { INestApplication } from '@nestjs/common';
+import { getModelToken } from '@nestjs/mongoose';
+import { Test } from '@nestjs/testing';
+import { MongoMemoryServer } from 'mongodb-memory-server';
+import type { Model } from 'mongoose';
+import request from 'supertest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type { Admin } from '../src/admins/admin.schema.js';
+import type { Product } from '../src/products/schemas/product.schema.js';
+
+const ADMIN_EMAIL = 'admin@geanbebidas.com';
+const ADMIN_PASSWORD = 'test-password-123';
+const MISSING_ID = '64b000000000000000000000';
+
+describe('Gean Bebidas API (e2e)', () => {
+  let mongo: MongoMemoryServer;
+  let app: INestApplication;
+  let adminModel: Model<Admin>;
+  let productModel: Model<Product>;
+  let token: string;
+
+  beforeAll(async () => {
+    mongo = await MongoMemoryServer.create();
+
+    // Always an in-memory database: the tests must never reach a real one
+    process.env.MONGODB_URI = mongo.getUri('gean-bebidas-test');
+    process.env.JWT_SECRET = 'e2e-secret';
+    process.env.JWT_EXPIRES_IN = '1h';
+
+    // Imported after the env is set because the config is validated on import
+    const { AppModule } = await import('../src/app.module.js');
+    const { setupApp } = await import('../src/app.setup.js');
+
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    app = moduleRef.createNestApplication();
+    setupApp(app);
+    await app.init();
+
+    adminModel = app.get(getModelToken('Admin'), { strict: false });
+    productModel = app.get(getModelToken('Product'), { strict: false });
+  });
+
+  afterAll(async () => {
+    await app?.close();
+    await mongo?.stop();
+  });
+
+  beforeEach(async () => {
+    await Promise.all([adminModel.deleteMany({}), productModel.deleteMany({})]);
+    await adminModel.create({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+    await productModel.insertMany([
+      { name: 'Skol Lata 350ml', price: 4.5, category: 'beers' },
+      { name: 'Heineken Long Neck', price: 8.9, category: 'beers' },
+      { name: 'Whisky Red Label 1L', price: 89.9, category: 'spirits', status: 'out-of-stock' },
+      { name: 'Coca-Cola 2L', price: 11, category: 'soft-drinks' },
+    ]);
+
+    const login = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+    token = login.body.token;
+  });
+
+  const auth = () => ({ Authorization: `Bearer ${token}` });
+
+  describe('health', () => {
+    it('reports the database connection', async () => {
+      const response = await request(app.getHttpServer()).get('/health').expect(200);
+
+      expect(response.body).toEqual({ status: 'ok', database: 'connected' });
+    });
+  });
+
+  describe('public catalog (RN01)', () => {
+    it('lists only available products', async () => {
+      const response = await request(app.getHttpServer()).get('/products').expect(200);
+
+      const names = response.body.map((product: Product) => product.name);
+      expect(names).toEqual(['Coca-Cola 2L', 'Heineken Long Neck', 'Skol Lata 350ml']);
+      expect(response.body.every((product: Product) => product.status === 'available')).toBe(true);
+    });
+
+    it('filters by category', async () => {
+      const response = await request(app.getHttpServer()).get('/products?category=beers').expect(200);
+
+      expect(response.body).toHaveLength(2);
+    });
+
+    it('never exposes an out-of-stock product through a category filter', async () => {
+      const response = await request(app.getHttpServer()).get('/products?category=spirits').expect(200);
+
+      expect(response.body).toEqual([]);
+    });
+
+    it('searches by name ignoring case', async () => {
+      const response = await request(app.getHttpServer()).get('/products?search=SKOL').expect(200);
+
+      expect(response.body.map((product: Product) => product.name)).toEqual(['Skol Lata 350ml']);
+    });
+
+    it('treats regex characters in the search as plain text', async () => {
+      const response = await request(app.getHttpServer()).get('/products?search=.*').expect(200);
+
+      expect(response.body).toEqual([]);
+    });
+
+    it('combines category and search', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/products?category=beers&search=heineken')
+        .expect(200);
+
+      expect(response.body).toHaveLength(1);
+    });
+
+    it('rejects an invalid category', async () => {
+      await request(app.getHttpServer()).get('/products?category=wine').expect(400);
+    });
+
+    it('returns an available product by id', async () => {
+      const product = await productModel.findOne({ name: 'Skol Lata 350ml' });
+
+      const response = await request(app.getHttpServer()).get(`/products/${product!.id}`).expect(200);
+
+      expect(response.body.name).toBe('Skol Lata 350ml');
+    });
+
+    it('returns 404 for an out-of-stock product', async () => {
+      const product = await productModel.findOne({ status: 'out-of-stock' });
+
+      await request(app.getHttpServer()).get(`/products/${product!.id}`).expect(404);
+    });
+
+    it('returns 400 for a malformed id and 404 for an unknown one', async () => {
+      await request(app.getHttpServer()).get('/products/not-an-id').expect(400);
+      await request(app.getHttpServer()).get(`/products/${MISSING_ID}`).expect(404);
+    });
+
+    it('returns 404 for an unknown route', async () => {
+      await request(app.getHttpServer()).get('/nope').expect(404);
+    });
+  });
+
+  describe('authentication', () => {
+    it('returns a token for valid credentials', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD })
+        .expect(200);
+
+      expect(response.body.token).toEqual(expect.any(String));
+      expect(JSON.stringify(response.body)).not.toContain('password');
+    });
+
+    it('accepts the email in a different case', async () => {
+      await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: 'ADMIN@GeanBebidas.com', password: ADMIN_PASSWORD })
+        .expect(200);
+    });
+
+    it('rejects a wrong password and an unknown email with 401', async () => {
+      await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: ADMIN_EMAIL, password: 'wrong' })
+        .expect(401);
+      await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: 'nobody@example.com', password: ADMIN_PASSWORD })
+        .expect(401);
+    });
+
+    it('rejects a malformed body with 400', async () => {
+      await request(app.getHttpServer()).post('/auth/login').send({}).expect(400);
+      await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: 'not-an-email', password: 'x' })
+        .expect(400);
+    });
+
+    it('stores the password hashed', async () => {
+      const admin = await adminModel.findOne({ email: ADMIN_EMAIL }).select('+password');
+
+      expect(admin!.password).not.toBe(ADMIN_PASSWORD);
+      expect(admin!.password).toMatch(/^\$2[aby]\$/);
+    });
+  });
+
+  describe('admin routes require a token (RN02)', () => {
+    const routes: Array<[string, string]> = [
+      ['get', '/admin/products'],
+      ['post', '/admin/products'],
+      ['put', `/admin/products/${MISSING_ID}`],
+      ['patch', `/admin/products/${MISSING_ID}/status`],
+      ['delete', `/admin/products/${MISSING_ID}`],
+    ];
+
+    it.each(routes)('%s %s returns 401 without a token', async (method, path) => {
+      const server = request(app.getHttpServer());
+      await (server as unknown as Record<string, (p: string) => request.Test>)[method](path)
+        .send({})
+        .expect(401);
+    });
+
+    it.each(routes)('%s %s returns 401 with an invalid token', async (method, path) => {
+      const server = request(app.getHttpServer());
+      await (server as unknown as Record<string, (p: string) => request.Test>)[method](path)
+        .set('Authorization', 'Bearer invalid.token.here')
+        .send({})
+        .expect(401);
+    });
+
+    it('does not change the database when unauthorized', async () => {
+      await request(app.getHttpServer())
+        .post('/admin/products')
+        .send({ name: 'Intruder', price: 1, category: 'ice' })
+        .expect(401);
+
+      expect(await productModel.countDocuments({ name: 'Intruder' })).toBe(0);
+    });
+  });
+
+  describe('admin product management', () => {
+    it('lists every product, including out-of-stock ones', async () => {
+      const response = await request(app.getHttpServer()).get('/admin/products').set(auth()).expect(200);
+
+      expect(response.body).toHaveLength(4);
+    });
+
+    it('creates a product with status available by default', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/admin/products')
+        .set(auth())
+        .send({ name: '  Brahma Lata  ', price: 4.3, category: 'beers' })
+        .expect(201);
+
+      expect(response.body).toMatchObject({ name: 'Brahma Lata', price: 4.3, status: 'available' });
+      expect(await productModel.countDocuments()).toBe(5);
+    });
+
+    it('ignores unknown fields on create', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/admin/products')
+        .set(auth())
+        .send({ name: 'Gelo', price: 12, category: 'ice', isAdmin: true })
+        .expect(201);
+
+      expect(response.body.isAdmin).toBeUndefined();
+    });
+
+    it.each([
+      [{ price: 1, category: 'ice' }, 'missing name'],
+      [{ name: 'x', price: -1, category: 'ice' }, 'negative price'],
+      [{ name: 'x', price: 1, category: 'wine' }, 'invalid category'],
+      [{ name: 'x', price: 1, category: 'ice', status: 'gone' }, 'invalid status'],
+    ])('rejects %j (%s) with 400', async (body) => {
+      await request(app.getHttpServer()).post('/admin/products').set(auth()).send(body).expect(400);
+    });
+
+    it('updates a product', async () => {
+      const product = await productModel.findOne({ name: 'Skol Lata 350ml' });
+
+      const response = await request(app.getHttpServer())
+        .put(`/admin/products/${product!.id}`)
+        .set(auth())
+        .send({ price: 5.9, description: 'Updated' })
+        .expect(200);
+
+      expect(response.body).toMatchObject({ name: 'Skol Lata 350ml', price: 5.9, description: 'Updated' });
+    });
+
+    it('rejects an invalid update and leaves the product untouched', async () => {
+      const product = await productModel.findOne({ name: 'Skol Lata 350ml' });
+
+      await request(app.getHttpServer())
+        .put(`/admin/products/${product!.id}`)
+        .set(auth())
+        .send({ price: -5 })
+        .expect(400);
+
+      expect((await productModel.findById(product!.id))!.price).toBe(4.5);
+    });
+
+    it('returns 404 when updating or deleting an unknown product', async () => {
+      await request(app.getHttpServer())
+        .put(`/admin/products/${MISSING_ID}`)
+        .set(auth())
+        .send({ price: 1 })
+        .expect(404);
+      await request(app.getHttpServer()).delete(`/admin/products/${MISSING_ID}`).set(auth()).expect(404);
+    });
+
+    it('returns 400 for a malformed id', async () => {
+      await request(app.getHttpServer()).put('/admin/products/abc').set(auth()).send({}).expect(400);
+      await request(app.getHttpServer()).delete('/admin/products/abc').set(auth()).expect(400);
+    });
+
+    it('deletes a product', async () => {
+      const product = await productModel.findOne({ name: 'Coca-Cola 2L' });
+
+      await request(app.getHttpServer()).delete(`/admin/products/${product!.id}`).set(auth()).expect(204);
+
+      expect(await productModel.findById(product!.id)).toBeNull();
+    });
+
+    it('filters the admin list by category and search', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/admin/products?category=spirits')
+        .set(auth())
+        .expect(200);
+
+      expect(response.body.map((product: Product) => product.name)).toEqual(['Whisky Red Label 1L']);
+    });
+  });
+
+  describe('availability status (RN01 + RF07)', () => {
+    it('hides a product from the storefront once it is out of stock, and shows it again', async () => {
+      const product = await productModel.findOne({ name: 'Skol Lata 350ml' });
+      const id = product!.id;
+
+      await request(app.getHttpServer()).get(`/products/${id}`).expect(200);
+
+      await request(app.getHttpServer())
+        .patch(`/admin/products/${id}/status`)
+        .set(auth())
+        .send({ status: 'out-of-stock' })
+        .expect(200)
+        .expect((response) => expect(response.body.status).toBe('out-of-stock'));
+
+      await request(app.getHttpServer()).get(`/products/${id}`).expect(404);
+      const list = await request(app.getHttpServer()).get('/products').expect(200);
+      expect(list.body.map((item: Product) => item.name)).not.toContain('Skol Lata 350ml');
+
+      await request(app.getHttpServer())
+        .patch(`/admin/products/${id}/status`)
+        .set(auth())
+        .send({ status: 'available' })
+        .expect(200);
+
+      await request(app.getHttpServer()).get(`/products/${id}`).expect(200);
+    });
+
+    it('rejects an invalid status and a missing one', async () => {
+      const product = await productModel.findOne({ name: 'Skol Lata 350ml' });
+
+      await request(app.getHttpServer())
+        .patch(`/admin/products/${product!.id}/status`)
+        .set(auth())
+        .send({ status: 'gone' })
+        .expect(400);
+      await request(app.getHttpServer())
+        .patch(`/admin/products/${product!.id}/status`)
+        .set(auth())
+        .send({})
+        .expect(400);
+    });
+
+    it('returns 404 for an unknown product', async () => {
+      await request(app.getHttpServer())
+        .patch(`/admin/products/${MISSING_ID}/status`)
+        .set(auth())
+        .send({ status: 'available' })
+        .expect(404);
+    });
+  });
+});
