@@ -48,10 +48,15 @@ Scripts disponíveis:
 | `npm run build`      | Compila o TypeScript para `dist/`       |
 | `npm run start:prod` | Roda a versão compilada                 |
 | `npm run lint`       | Verifica o código com o oxlint          |
-| `npm test`           | Roda os testes                          |
+| `npm test`           | Roda os testes unitários                |
+| `npm run test:e2e`   | Roda os testes e2e (MongoDB em memória) |
 | `npm run seed`       | Cria índices, o admin e 10 produtos de exemplo |
 
 O seed **substitui todos os produtos** da coleção pelos de exemplo (3 deles esgotados) e cria ou atualiza o admin com `ADMIN_EMAIL` e `ADMIN_PASSWORD`. Use apenas em ambiente de desenvolvimento.
+
+Os testes e2e sobem um MongoDB em memória (`mongodb-memory-server`) e nunca usam o banco do `.env`. A primeira execução baixa o binário do MongoDB, então demora um pouco mais.
+
+> No Windows, rode os testes a partir de um caminho com a letra do drive em maiúsculo (`D:\...`, como no PowerShell). Se o terminal abrir em `d:\...`, o Vitest carrega o próprio runner duas vezes e todas as suítes falham com `Cannot read properties of undefined (reading 'config')`.
 
 ### Frontend
 
