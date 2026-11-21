@@ -1,0 +1,40 @@
+﻿Documento de Requisitos e Descrição do Projeto
+Projeto: Gean Bebidas – Plataforma Web de Catálogo e Pedidos Online
+Disciplina: Desenvolvimento Web 2
+Equipe: Gabriel, Guilherme e Lucas
+1. Visão Geral do Projeto
+O projeto consiste no desenvolvimento de uma aplicação web para o depósito Gean Bebidas, com o objetivo de digitalizar a exibição do catálogo de produtos e otimizar o fluxo de pedidos. A plataforma contará com uma interface para os clientes navegarem, pesquisarem itens, montarem seus carrinhos e finalizarem pedidos, além de um painel administrativo para controle do catálogo pelo lojista.
+2. Objetivos
+* Objetivo Geral: Criar uma vitrine digital para o depósito, permitindo que clientes façam pedidos online sem necessidade de um aplicativo instalado.
+* Objetivos Específicos:
+   * Facilitar a busca e visualização dos produtos através de filtros por categorias.
+   * Agilizar o atendimento ao direcionar pedidos padronizados para o WhatsApp da loja.
+   * Garantir autonomia ao administrador para gerir produtos sem necessidade de mexer no código ou no banco de dados diretamente.
+3. Requisitos Funcionais (RF)
+Módulo Cliente
+* RF01 - Navegação por Categorias: O sistema deve permitir que o cliente filtre os produtos por categorias (cervejas, destilados, refrigerantes, petiscos e gelo).
+* RF02 - Pesquisa de Produtos: O sistema deve permitir que o cliente busque produtos por nome.
+* RF03 - Gerenciamento de Carrinho: O sistema deve permitir adicionar, alterar a quantidade e remover produtos do carrinho de compras. (O carrinho deve persistir no localStorage da sessão).
+* RF04 - Finalização via WhatsApp: O sistema deve calcular o valor total do pedido e gerar um link dinâmico para o WhatsApp da loja, contendo a lista formatada de itens, quantidades e o total a pagar.
+Módulo Administrador
+* RF05 - Autenticação Administrativa: O sistema deve restringir o acesso ao painel de administração apenas a usuários autenticados via login e senha (JWT).
+* RF06 - Gerenciamento de Catálogo (CRUD): O painel administrativo deve permitir a criação, leitura, atualização e exclusão (CRUD) dos produtos no banco de dados.
+* RF07 - Controle de Status de Estoque: O sistema deve permitir ao administrador alterar o status de disponibilidade do produto (Ex: "Disponível" / "Esgotado"), sem exigir entrada de quantidades numéricas.
+4. Requisitos Não Funcionais (RNF)
+
+
+* RNF01 - Responsividade: A interface do cliente deve seguir a abordagem mobile-first, adaptando-se perfeitamente a dispositivos móveis, tablets e desktops.
+* RNF02 - Stack do Frontend: A interface deve ser desenvolvida em React/TypeScript.
+* RNF03 - Stack do Backend: A API deve ser desenvolvida em Node.js utilizando o microframework Express.
+* RNF04 - Banco de Dados: O sistema utilizará o MongoDB (via MongoDB Atlas) como banco de dados NoSQL.
+* RNF05 - Hospedagem e Deploy: O sistema será publicado utilizando serviços de infraestrutura em nuvem.
+5. Regras de Negócio (RN)
+* RN01 - Limite de Compra: Somente produtos com status "Disponível" podem ser visualizados na vitrine e adicionados ao carrinho.
+* RN02 - Acesso Protegido: Nenhuma rota de modificação do banco de dados (POST, PUT, DELETE em produtos) pode ser acessada sem um token de autorização válido.
+6. Limitações e Fora de Escopo (MVP)
+Para garantir a viabilidade da entrega no prazo estipulado para a disciplina, os seguintes itens não farão parte da versão inicial:
+
+
+* Histórico de pedidos salvo no banco de dados e tela de acompanhamento de status do lado do cliente (será gerido pelo lojista diretamente no WhatsApp).
+* Cadastro e login de clientes.
+* Baixa automática de estoque numérico (o controle será feito através de status manual no painel administrativo).

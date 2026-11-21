@@ -1,11 +1,11 @@
 export type ProductCategory =
-  | 'beers'
-  | 'spirits'
-  | 'soft-drinks'
-  | 'snacks'
-  | 'ice';
+  | 'cervejas'
+  | 'destilados'
+  | 'nao_alcolicos'
+  | 'petiscos'
+  | 'gelo';
 
-export type ProductStatus = 'available' | 'out-of-stock';
+export type ProductStatus = 'disponivel' | 'indisponivel';
 
 export interface Product {
   _id: string;
