@@ -18,7 +18,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   }, [items]);
 
   const addItem = (product: Product) => {
-    if (product.status !== 'available') return;
+    if (product.status !== 'disponivel') return;
 
     setItems((prev) => {
       const existing = prev.find((item) => item.product._id === product._id);

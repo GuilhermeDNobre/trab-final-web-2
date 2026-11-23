@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { Link as RouterLink, useLocation } from 'react-router-dom';
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
 import {
   AppBar,
   Avatar,
@@ -45,6 +46,13 @@ export const AdminLayout = ({
 }: AdminLayoutProps) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    void navigate('/admin/login', { replace: true });
+  };
 
   const toggleMobileDrawer = () => {
     setMobileOpen((prev) => !prev);
@@ -191,11 +199,10 @@ export const AdminLayout = ({
           </Stack>
 
           <IconButton
-            component={RouterLink}
-            to="/"
+            onClick={handleLogout}
             size="small"
-            aria-label="Sair para a vitrine"
-            title="Sair para a vitrine"
+            aria-label="Sair do painel"
+            title="Sair do painel"
           >
             <LogoutIcon fontSize="small" />
           </IconButton>

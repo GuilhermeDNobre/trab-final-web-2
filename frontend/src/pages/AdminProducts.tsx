@@ -4,11 +4,16 @@ import { Alert, Box, Snackbar, Stack, Typography } from '@mui/material';
 import { AdminLayout } from '../components/admin/AdminLayout';
 import { AdminProductsTable } from '../components/admin/AdminProductsTable';
 import { AdminProductsToolbar } from '../components/admin/AdminProductsToolbar';
+import { DeleteProductDialog } from '../components/admin/DeleteProductDialog';
 import { ProductFormDialog } from '../components/admin/ProductFormDialog';
 import { MOCK_PRODUCTS } from '../constants/mockProducts';
 import type { Product, ProductCategory, ProductStatus } from '../types/Product';
 import { filterAndSortAdminProducts } from '../utils/adminProducts';
 import type { AdminSortField, SortOrder } from '../utils/adminProducts';
+import {
+  createProductRecord,
+  updateProductRecord,
+} from '../utils/productForm';
 import type { ProductPayload } from '../utils/productForm';
 
 export const AdminProducts = () => {
@@ -17,6 +22,8 @@ export const AdminProducts = () => {
   const [formOpen, setFormOpen] = useState(
     () => searchParams.get('novo') === '1',
   );
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [category, setCategory] = useState<ProductCategory | 'all'>('all');
@@ -38,10 +45,16 @@ export const AdminProducts = () => {
     [products, searchTerm, category, status, sortField, sortOrder],
   );
 
+  const maxPage = Math.max(
+    0,
+    Math.ceil(filteredProducts.length / rowsPerPage) - 1,
+  );
+  const safePage = Math.min(page, maxPage);
+
   const paginatedProducts = useMemo(() => {
-    const start = page * rowsPerPage;
+    const start = safePage * rowsPerPage;
     return filteredProducts.slice(start, start + rowsPerPage);
-  }, [filteredProducts, page, rowsPerPage]);
+  }, [filteredProducts, safePage, rowsPerPage]);
 
   const hasActiveFilters =
     searchTerm.trim() !== '' || category !== 'all' || status !== 'all';
@@ -83,38 +96,69 @@ export const AdminProducts = () => {
     setPage(0);
   };
 
+  const handleOpenCreate = () => {
+    setEditingProduct(null);
+    setFormOpen(true);
+  };
+
+  const handleOpenEdit = (product: Product) => {
+    setEditingProduct(product);
+    setFormOpen(true);
+  };
+
   const handleCloseForm = () => {
     setFormOpen(false);
+    setEditingProduct(null);
     if (searchParams.has('novo')) {
       setSearchParams({}, { replace: true });
     }
   };
 
-  const handleCreateProduct = (payload: ProductPayload) => {
+  const handleSubmitProduct = (payload: ProductPayload) => {
     const now = new Date().toISOString();
-    const newProduct: Product = {
-      _id: `local-${Date.now()}`,
-      name: payload.name,
-      price: payload.price,
-      category: payload.category,
-      status: payload.status,
-      ...(payload.imageUrl ? { imageUrl: payload.imageUrl } : {}),
-      ...(payload.description ? { description: payload.description } : {}),
-      createdAt: now,
-      updatedAt: now,
-    };
 
-    setProducts((prev) => [newProduct, ...prev]);
+    if (editingProduct) {
+      setProducts((prev) =>
+        prev.map((item) =>
+          item._id === editingProduct._id
+            ? updateProductRecord(item, payload, now)
+            : item,
+        ),
+      );
+      setSnackbarMessage(`Produto "${payload.name}" atualizado com sucesso!`);
+    } else {
+      const newProduct = createProductRecord(payload, now);
+      setProducts((prev) => [newProduct, ...prev]);
+      setPage(0);
+      setSnackbarMessage(`Produto "${payload.name}" cadastrado com sucesso!`);
+    }
+
     handleCloseForm();
-    setPage(0);
-    setSnackbarMessage(`Produto "${payload.name}" cadastrado com sucesso!`);
+  };
+
+  const handleRequestDelete = (product: Product) => {
+    setDeletingProduct(product);
+  };
+
+  const handleCloseDelete = () => {
+    setDeletingProduct(null);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deletingProduct) return;
+
+    setProducts((prev) =>
+      prev.filter((item) => item._id !== deletingProduct._id),
+    );
+    setSnackbarMessage(`Produto "${deletingProduct.name}" excluído com sucesso!`);
+    setDeletingProduct(null);
   };
 
   return (
     <AdminLayout
       searchTerm={searchTerm}
       onSearchChange={handleSearchChange}
-      onNewProductClick={() => setFormOpen(true)}
+      onNewProductClick={handleOpenCreate}
     >
       <Stack spacing={3}>
         <Box>
@@ -139,20 +183,29 @@ export const AdminProducts = () => {
         <AdminProductsTable
           products={paginatedProducts}
           totalCount={filteredProducts.length}
-          page={page}
+          page={safePage}
           rowsPerPage={rowsPerPage}
           sortField={sortField}
           sortOrder={sortOrder}
           onSortChange={handleSortChange}
           onPageChange={setPage}
           onRowsPerPageChange={handleRowsPerPageChange}
+          onEdit={handleOpenEdit}
+          onDelete={handleRequestDelete}
         />
       </Stack>
 
       <ProductFormDialog
         open={formOpen}
         onClose={handleCloseForm}
-        onSubmit={handleCreateProduct}
+        onSubmit={handleSubmitProduct}
+        initialProduct={editingProduct}
+      />
+
+      <DeleteProductDialog
+        product={deletingProduct}
+        onClose={handleCloseDelete}
+        onConfirm={handleConfirmDelete}
       />
 
       <Snackbar

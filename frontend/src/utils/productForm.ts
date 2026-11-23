@@ -105,3 +105,35 @@ export const toProductPayload = (values: ProductFormValues): ProductPayload => {
     ...(trimmedDescription ? { description: trimmedDescription } : {}),
   };
 };
+
+const toProductFields = (
+  payload: ProductPayload,
+): Omit<Product, '_id' | 'createdAt' | 'updatedAt'> => ({
+  name: payload.name,
+  price: payload.price,
+  category: payload.category,
+  status: payload.status,
+  ...(payload.imageUrl ? { imageUrl: payload.imageUrl } : {}),
+  ...(payload.description ? { description: payload.description } : {}),
+});
+
+export const createProductRecord = (
+  payload: ProductPayload,
+  now: string,
+): Product => ({
+  _id: `local-${Date.now()}`,
+  ...toProductFields(payload),
+  createdAt: now,
+  updatedAt: now,
+});
+
+export const updateProductRecord = (
+  existing: Product,
+  payload: ProductPayload,
+  now: string,
+): Product => ({
+  _id: existing._id,
+  ...toProductFields(payload),
+  createdAt: existing.createdAt,
+  updatedAt: now,
+});
