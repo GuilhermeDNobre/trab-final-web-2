@@ -1,5 +1,4 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { ProtectedRoute } from './components/admin/ProtectedRoute';
 import { CartDrawer } from './components/cart/CartDrawer';
 import { AuthProvider } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
@@ -18,10 +17,9 @@ export function App() {
             <Route path="/" element={<Home />} />
             <Route path="/produtos" element={<Products />} />
             <Route path="/admin/login" element={<AdminLogin />} />
-            <Route element={<ProtectedRoute />}>
-              <Route path="/admin" element={<AdminDashboard />} />
-              <Route path="/admin/produtos" element={<AdminProducts />} />
-            </Route>
+            {/* TODO: Reativar <ProtectedRoute /> quando o backend de autenticação estiver disponível */}
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/produtos" element={<AdminProducts />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
