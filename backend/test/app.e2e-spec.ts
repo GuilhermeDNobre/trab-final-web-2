@@ -53,6 +53,8 @@ describe('Gean Bebidas API (e2e)', () => {
       { name: 'Heineken Long Neck', price: 8.9, category: 'beers' },
       { name: 'Whisky Red Label 1L', price: 89.9, category: 'spirits', status: 'out-of-stock' },
       { name: 'Coca-Cola 2L', price: 11, category: 'soft-drinks' },
+      { name: 'Guaraná Antarctica Lata 350ml', price: 4.2, category: 'soft-drinks' },
+      { name: 'Água Mineral 500ml', price: 3, category: 'soft-drinks' },
     ]);
 
     const login = await request(app.getHttpServer())
@@ -76,7 +78,13 @@ describe('Gean Bebidas API (e2e)', () => {
       const response = await request(app.getHttpServer()).get('/products').expect(200);
 
       const names = response.body.map((product: Product) => product.name);
-      expect(names).toEqual(['Coca-Cola 2L', 'Heineken Long Neck', 'Skol Lata 350ml']);
+      expect(names).toEqual([
+        'Coca-Cola 2L',
+        'Guaraná Antarctica Lata 350ml',
+        'Heineken Long Neck',
+        'Skol Lata 350ml',
+        'Água Mineral 500ml',
+      ]);
       expect(response.body.every((product: Product) => product.status === 'available')).toBe(true);
     });
 
@@ -96,6 +104,23 @@ describe('Gean Bebidas API (e2e)', () => {
       const response = await request(app.getHttpServer()).get('/products?search=SKOL').expect(200);
 
       expect(response.body.map((product: Product) => product.name)).toEqual(['Skol Lata 350ml']);
+    });
+
+    it('searches by name ignoring accents in both directions', async () => {
+      const guarana = await request(app.getHttpServer()).get('/products?search=guarana').expect(200);
+      expect(guarana.body.map((product: Product) => product.name)).toEqual([
+        'Guaraná Antarctica Lata 350ml',
+      ]);
+
+      const agua = await request(app.getHttpServer()).get('/products?search=agua').expect(200);
+      expect(agua.body.map((product: Product) => product.name)).toEqual(['Água Mineral 500ml']);
+
+      const accentedQuery = await request(app.getHttpServer())
+        .get('/products?search=skól')
+        .expect(200);
+      expect(accentedQuery.body.map((product: Product) => product.name)).toEqual([
+        'Skol Lata 350ml',
+      ]);
     });
 
     it('treats regex characters in the search as plain text', async () => {
@@ -183,11 +208,32 @@ describe('Gean Bebidas API (e2e)', () => {
       expect(admin!.password).not.toBe(ADMIN_PASSWORD);
       expect(admin!.password).toMatch(/^\$2[aby]\$/);
     });
+
+    it('returns the authenticated admin profile on GET /auth/me', async () => {
+      const admin = await adminModel.findOne({ email: ADMIN_EMAIL });
+      const response = await request(app.getHttpServer()).get('/auth/me').set(auth()).expect(200);
+
+      expect(response.body).toEqual({ id: admin!.id, email: ADMIN_EMAIL });
+      expect(JSON.stringify(response.body)).not.toContain('password');
+    });
+
+    it('rejects GET /auth/me without a valid token or for a deleted admin', async () => {
+      await request(app.getHttpServer()).get('/auth/me').expect(401);
+      await request(app.getHttpServer())
+        .get('/auth/me')
+        .set('Authorization', 'Bearer invalid.token.here')
+        .expect(401);
+
+      await adminModel.deleteMany({});
+      await request(app.getHttpServer()).get('/auth/me').set(auth()).expect(401);
+    });
   });
 
   describe('admin routes require a token (RN02)', () => {
     const routes: Array<[string, string]> = [
+      ['get', '/auth/me'],
       ['get', '/admin/products'],
+      ['get', `/admin/products/${MISSING_ID}`],
       ['post', '/admin/products'],
       ['put', `/admin/products/${MISSING_ID}`],
       ['patch', `/admin/products/${MISSING_ID}/status`],
@@ -223,7 +269,26 @@ describe('Gean Bebidas API (e2e)', () => {
     it('lists every product, including out-of-stock ones', async () => {
       const response = await request(app.getHttpServer()).get('/admin/products').set(auth()).expect(200);
 
-      expect(response.body).toHaveLength(4);
+      expect(response.body).toHaveLength(6);
+    });
+
+    it('gets a single product by id, including out-of-stock ones', async () => {
+      const outOfStock = await productModel.findOne({ status: 'out-of-stock' });
+      const response = await request(app.getHttpServer())
+        .get(`/admin/products/${outOfStock!.id}`)
+        .set(auth())
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        name: 'Whisky Red Label 1L',
+        status: 'out-of-stock',
+      });
+
+      await request(app.getHttpServer()).get('/admin/products/abc').set(auth()).expect(400);
+      await request(app.getHttpServer())
+        .get(`/admin/products/${MISSING_ID}`)
+        .set(auth())
+        .expect(404);
     });
 
     it('creates a product with status available by default', async () => {
@@ -234,7 +299,7 @@ describe('Gean Bebidas API (e2e)', () => {
         .expect(201);
 
       expect(response.body).toMatchObject({ name: 'Brahma Lata', price: 4.3, status: 'available' });
-      expect(await productModel.countDocuments()).toBe(5);
+      expect(await productModel.countDocuments()).toBe(7);
     });
 
     it('ignores unknown fields on create', async () => {
@@ -302,13 +367,29 @@ describe('Gean Bebidas API (e2e)', () => {
       expect(await productModel.findById(product!.id)).toBeNull();
     });
 
-    it('filters the admin list by category and search', async () => {
-      const response = await request(app.getHttpServer())
+    it('filters the admin list by category, status and search', async () => {
+      const byCategory = await request(app.getHttpServer())
         .get('/admin/products?category=spirits')
         .set(auth())
         .expect(200);
+      expect(byCategory.body.map((product: Product) => product.name)).toEqual(['Whisky Red Label 1L']);
 
-      expect(response.body.map((product: Product) => product.name)).toEqual(['Whisky Red Label 1L']);
+      const outOfStock = await request(app.getHttpServer())
+        .get('/admin/products?status=out-of-stock')
+        .set(auth())
+        .expect(200);
+      expect(outOfStock.body.map((product: Product) => product.name)).toEqual(['Whisky Red Label 1L']);
+
+      const available = await request(app.getHttpServer())
+        .get('/admin/products?status=available')
+        .set(auth())
+        .expect(200);
+      expect(available.body).toHaveLength(5);
+
+      await request(app.getHttpServer())
+        .get('/admin/products?status=invalid')
+        .set(auth())
+        .expect(400);
     });
   });
 
