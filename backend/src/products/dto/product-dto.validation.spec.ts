@@ -57,6 +57,36 @@ describe('CreateProductDto', () => {
     const dto = plainToInstance(CreateProductDto, { ...validProduct, name: '  Skol  ' });
     expect(dto.name).toBe('Skol');
   });
+
+  it('treats blank optional imageUrl and description as omitted', async () => {
+    const dto = plainToInstance(CreateProductDto, {
+      ...validProduct,
+      imageUrl: '   ',
+      description: '',
+    });
+
+    expect(dto.imageUrl).toBeUndefined();
+    expect(dto.description).toBeUndefined();
+    expect(await validate(dto)).toEqual([]);
+  });
+
+  it.each(['javascript:alert(1)', 'data:image/png;base64,abc', 'not-a-url'])(
+    'rejects invalid imageUrl "%s"',
+    async (imageUrl) => {
+      expect(await errorsFor(CreateProductDto, { ...validProduct, imageUrl })).toEqual([
+        'imageUrl',
+      ]);
+    },
+  );
+
+  it('rejects overly long name or description', async () => {
+    expect(await errorsFor(CreateProductDto, { ...validProduct, name: 'a'.repeat(121) })).toEqual([
+      'name',
+    ]);
+    expect(
+      await errorsFor(CreateProductDto, { ...validProduct, description: 'a'.repeat(501) }),
+    ).toEqual(['description']);
+  });
 });
 
 describe('UpdateProductDto', () => {
@@ -67,6 +97,21 @@ describe('UpdateProductDto', () => {
 
   it('still validates the provided fields', async () => {
     expect(await errorsFor(UpdateProductDto, { price: -5 })).toEqual(['price']);
+    expect(await errorsFor(UpdateProductDto, { imageUrl: 'javascript:alert(1)' })).toEqual([
+      'imageUrl',
+    ]);
+  });
+
+  it('accepts null and transforms blank strings to null so optional fields can be cleared', async () => {
+    const fromNull = plainToInstance(UpdateProductDto, { imageUrl: null, description: null });
+    expect(await validate(fromNull)).toEqual([]);
+    expect(fromNull.imageUrl).toBeNull();
+    expect(fromNull.description).toBeNull();
+
+    const fromEmpty = plainToInstance(UpdateProductDto, { imageUrl: '  ', description: '' });
+    expect(await validate(fromEmpty)).toEqual([]);
+    expect(fromEmpty.imageUrl).toBeNull();
+    expect(fromEmpty.description).toBeNull();
   });
 });
 

@@ -149,7 +149,20 @@ describe('ProductsService', () => {
       await expect(service.update('id-1', { price: 6 })).resolves.toBe(updated);
       expect(productModel.findByIdAndUpdate).toHaveBeenCalledWith(
         'id-1',
-        { price: 6 },
+        { $set: { price: 6 } },
+        { returnDocument: 'after', runValidators: true },
+      );
+    });
+
+    it('unsets fields explicitly passed as null', async () => {
+      const updated = { _id: 'id-1', price: 7 };
+      productModel.findByIdAndUpdate.mockResolvedValue(updated);
+
+      await service.update('id-1', { price: 7, imageUrl: null, description: null });
+
+      expect(productModel.findByIdAndUpdate).toHaveBeenCalledWith(
+        'id-1',
+        { $set: { price: 7 }, $unset: { imageUrl: 1, description: 1 } },
         { returnDocument: 'after', runValidators: true },
       );
     });
@@ -169,7 +182,7 @@ describe('ProductsService', () => {
 
       expect(productModel.findByIdAndUpdate).toHaveBeenCalledWith(
         'id-1',
-        { status: 'out-of-stock' },
+        { $set: { status: 'out-of-stock' } },
         expect.objectContaining({ runValidators: true }),
       );
     });

@@ -77,7 +77,27 @@ export class ProductsService {
   }
 
   async update(id: string, dto: UpdateProductDto) {
-    const product = await this.productModel.findByIdAndUpdate(id, dto, {
+    const $set: Record<string, unknown> = {};
+    const $unset: Record<string, 1> = {};
+
+    for (const [key, value] of Object.entries(dto)) {
+      if (value === undefined) continue;
+      if (value === null) {
+        $unset[key] = 1;
+      } else {
+        $set[key] = value;
+      }
+    }
+
+    const updateDoc: Record<string, unknown> = {};
+    if (Object.keys($set).length > 0) {
+      updateDoc.$set = $set;
+    }
+    if (Object.keys($unset).length > 0) {
+      updateDoc.$unset = $unset;
+    }
+
+    const product = await this.productModel.findByIdAndUpdate(id, updateDoc, {
       returnDocument: 'after',
       runValidators: true,
     });
