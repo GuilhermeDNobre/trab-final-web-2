@@ -112,7 +112,9 @@ Rotas protegidas exigem o header `Authorization: Bearer <token>`. Sem token vál
 | GET    | `/products`                   | Público   | Lista só produtos `available`. Filtros: `?category=` e `?search=` (nome)  |
 | GET    | `/products/:id`               | Público   | Detalhe de um produto `available` (esgotado retorna 404)                  |
 | POST   | `/auth/login`                 | Público   | Recebe `{ email, password }` e retorna `{ token }`                        |
-| GET    | `/admin/products`             | Protegido | Lista todos os produtos, inclusive esgotados                              |
+| GET    | `/auth/me`                    | Protegido | Retorna `{ id, email }` do admin autenticado                              |
+| GET    | `/admin/products`             | Protegido | Lista todos os produtos. Filtros: `?category=`, `?status=` e `?search=`   |
+| GET    | `/admin/products/:id`         | Protegido | Detalhe de qualquer produto por ID, inclusive esgotados                   |
 | POST   | `/admin/products`             | Protegido | Cria produto                                                              |
 | PUT    | `/admin/products/:id`         | Protegido | Atualiza produto                                                          |
 | PATCH  | `/admin/products/:id/status`  | Protegido | Altera o status (`available` ou `out-of-stock`)                           |
