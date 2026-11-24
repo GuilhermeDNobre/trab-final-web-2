@@ -1,10 +1,9 @@
-import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { getModelToken } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
-import { AdminDocument, Admin } from '../admins/admin.schema.js';
 import { AppModule } from '../app.module.js';
 import { Product } from '../products/schemas/product.schema.js';
+import { syncIndexesAndSeedAdmin } from './admin-seed.helper.js';
 
 const sampleProducts = [
   { name: 'Skol Lata 350ml', price: 4.5, category: 'beers', description: 'Pilsen lager, can' },
@@ -23,34 +22,9 @@ async function seed(): Promise<void> {
   const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error', 'warn'] });
 
   try {
-    const config = app.get(ConfigService);
-    const adminModel = app.get<Model<Admin>>(getModelToken(Admin.name), { strict: false });
+    await syncIndexesAndSeedAdmin(app);
+
     const productModel = app.get<Model<Product>>(getModelToken(Product.name), { strict: false });
-
-    const email = config.get<string>('ADMIN_EMAIL');
-    const password = config.get<string>('ADMIN_PASSWORD');
-    if (!email || !password) {
-      throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD must be set in the environment');
-    }
-
-    // Creates the collections and the indexes declared in the schemas
-    await Promise.all([adminModel.syncIndexes(), productModel.syncIndexes()]);
-    console.log('Indexes synchronized');
-
-    const normalizedEmail = email.trim().toLowerCase();
-    const existing: AdminDocument | null = await adminModel
-      .findOne({ email: normalizedEmail })
-      .select('+password');
-
-    if (existing) {
-      existing.password = password;
-      await existing.save();
-      console.log(`Admin updated: ${normalizedEmail}`);
-    } else {
-      await adminModel.create({ email: normalizedEmail, password });
-      console.log(`Admin created: ${normalizedEmail}`);
-    }
-
     await productModel.deleteMany({});
     const created = await productModel.insertMany(sampleProducts);
     console.log(`Products inserted: ${created.length}`);
