@@ -9,11 +9,23 @@ import {
   Post,
   Put,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { ParseObjectIdPipe } from '../common/parse-object-id.pipe.js';
+import { R2StorageService, type UploadedImageFile } from '../storage/r2-storage.service.js';
+import { MAX_IMAGE_SIZE_BYTES } from '../storage/storage.constants.js';
 import { CreateProductDto } from './dto/create-product.dto.js';
 import { ListAdminProductsQueryDto } from './dto/list-admin-products-query.dto.js';
 import { UpdateProductStatusDto } from './dto/update-product-status.dto.js';
@@ -27,7 +39,10 @@ import { ProductsService } from './products.service.js';
 @UseGuards(JwtAuthGuard)
 @Controller('admin/products')
 export class AdminProductsController {
-  constructor(private readonly productsService: ProductsService) {}
+  constructor(
+    private readonly productsService: ProductsService,
+    private readonly storageService: R2StorageService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List all products, including out-of-stock ones' })
@@ -39,6 +54,23 @@ export class AdminProductsController {
   @ApiOperation({ summary: 'Get any product by id, including out-of-stock ones' })
   findOne(@Param('id', ParseObjectIdPipe) id: string) {
     return this.productsService.findById(id);
+  }
+
+  @Post('upload')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_IMAGE_SIZE_BYTES } }))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @ApiOperation({ summary: 'Upload a product image to Cloudflare R2 (max 5 MB)' })
+  uploadImage(@UploadedFile() file?: UploadedImageFile) {
+    return this.storageService.uploadProductImage(file);
   }
 
   @Post()
