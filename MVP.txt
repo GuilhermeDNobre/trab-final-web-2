@@ -1,0 +1,46 @@
+﻿Sprint 1: Planejamento e Infraestrutura
+* Task: Configurar Repositórios e Base dos Projetos
+      * Responsável: Todos
+      * Checklist: Criar repositórios no GitHub; Inicializar projeto frontend com Vite; Inicializar projeto backend com Node.js e Express.
+* Task: Prototipar Interfaces (Figma)
+      * Responsável: Desenvolvedor 1 e 2
+      * Checklist: Desenhar tela de catálogo e carrinho com foco mobile-first; Desenhar tela de login e painel administrativo.
+* Task: Modelagem e Configuração do Banco de Dados
+      * Responsável: Desenvolvedor 3
+      * Checklist: Criar cluster no MongoDB Atlas; Configurar variáveis de conexão; Criar schemas para Admin e Produto.
+Sprint 2: Desenvolvimento Isolado
+* Task: Criar Endpoints de Produtos (CRUD)
+      * Responsável: Desenvolvedor 3
+      * Checklist: Rota GET (listar catálogo ativo); Rota POST (criar produto); Rota PUT (atualizar produto/estoque); Rota DELETE (remover produto).
+* Task: Criar Endpoint de Autenticação
+      * Responsável: Desenvolvedor 3
+      * Checklist: Rota POST de login; Geração e validação de token JWT para rotas restritas.
+* Task: Desenvolver Telas Estáticas (Cliente)
+      * Responsável: Desenvolvedor 1
+      * Checklist: Criar componente de navegação e filtros; Montar grade de exibição de produtos; Construir visualização do carrinho de compras.
+* Task: Desenvolver Telas Estáticas (Admin)
+      * Responsável: Desenvolvedor 2
+      * Checklist: Construir formulário de login; Montar tabela de listagem de produtos; Criar modal ou página com formulário de cadastro/edição.
+Sprint 3: Integração de Sistemas
+* Task: Integrar Autenticação e Rotas Protegidas
+      * Responsável: Desenvolvedor 2 e 3
+      * Checklist: Consumir endpoint de login no frontend; Armazenar token de acesso; Implementar bloqueio de rotas não autenticadas no painel.
+* Task: Integrar CRUD de Produtos no Painel
+      * Responsável: Desenvolvedor 2 e 3
+      * Checklist: Fazer requisição GET para popular a tabela de produtos; Conectar formulário aos endpoints POST e PUT; Adicionar botão funcional de exclusão (DELETE).
+* Task: Consumir Catálogo na Vitrine
+      * Responsável: Desenvolvedor 1 e 3
+      * Checklist: Fazer fetch dos produtos disponíveis no carregamento da página; Aplicar lógica de filtragem por categorias na interface.
+* Task: Implementar Lógica do Carrinho
+      * Responsável: Desenvolvedor 1
+      * Checklist: Criar função de adicionar e remover itens; Atualizar quantidades e subtotal; Persistir os dados no localStorage.
+Sprint 4: Testes e Deploy
+* Task: Implementar Checkout via WhatsApp
+      * Responsável: Desenvolvedor 1
+      * Checklist: Função para calcular valor total bruto; Gerar texto formatado com os itens do pedido; Criar redirecionamento dinâmico para a API do WhatsApp.
+* Task: Revisão de Responsividade e Fluxo
+      * Responsável: Desenvolvedor 1 e 2
+      * Checklist: Testar layout da vitrine em resoluções móveis reais; Validar usabilidade das ações de edição no painel administrativo; Corrigir bugs visuais.
+* Task: Deploy da Aplicação
+      * Responsável: Desenvolvedor 3
+      * Checklist: Configurar variáveis de ambiente de produção; Realizar deploy do backend no Render; Realizar deploy do frontend na Vercel; Realizar teste final no ambiente online.
