@@ -1,16 +1,21 @@
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import type { INestApplication } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { Test } from '@nestjs/testing';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import type { Model } from 'mongoose';
 import request from 'supertest';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Admin } from '../src/admins/admin.schema.js';
 import type { Product } from '../src/products/schemas/product.schema.js';
+import { MAX_IMAGE_SIZE_BYTES, R2_S3_CLIENT } from '../src/storage/storage.constants.js';
 
 const ADMIN_EMAIL = 'admin@geanbebidas.com';
 const ADMIN_PASSWORD = 'test-password-123';
 const MISSING_ID = '64b000000000000000000000';
+const PNG_BUFFER = Buffer.from([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+]);
 
 describe('Gean Bebidas API (e2e)', () => {
   let mongo: MongoMemoryServer;
@@ -18,6 +23,7 @@ describe('Gean Bebidas API (e2e)', () => {
   let adminModel: Model<Admin>;
   let productModel: Model<Product>;
   let token: string;
+  const r2Send = vi.fn();
 
   beforeAll(async () => {
     mongo = await MongoMemoryServer.create();
@@ -26,12 +32,18 @@ describe('Gean Bebidas API (e2e)', () => {
     process.env.MONGODB_URI = mongo.getUri('gean-bebidas-test');
     process.env.JWT_SECRET = 'e2e-secret';
     process.env.JWT_EXPIRES_IN = '1h';
+    process.env.CORS_ORIGIN = 'http://localhost:5173,https://gean-bebidas.vercel.app';
+    process.env.R2_BUCKET_NAME = 'gean-bebidas-test';
+    process.env.R2_PUBLIC_URL = 'https://cdn.geanbebidas.test';
 
     // Imported after the env is set because the config is validated on import
     const { AppModule } = await import('../src/app.module.js');
     const { setupApp } = await import('../src/app.setup.js');
 
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(R2_S3_CLIENT)
+      .useValue({ send: r2Send })
+      .compile();
     app = moduleRef.createNestApplication();
     setupApp(app);
     await app.init();
@@ -46,6 +58,9 @@ describe('Gean Bebidas API (e2e)', () => {
   });
 
   beforeEach(async () => {
+    r2Send.mockReset();
+    r2Send.mockResolvedValue({});
+
     await Promise.all([adminModel.deleteMany({}), productModel.deleteMany({})]);
     await adminModel.create({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
     await productModel.insertMany([
@@ -65,11 +80,31 @@ describe('Gean Bebidas API (e2e)', () => {
 
   const auth = () => ({ Authorization: `Bearer ${token}` });
 
-  describe('health', () => {
+  describe('health and CORS', () => {
     it('reports the database connection', async () => {
       const response = await request(app.getHttpServer()).get('/health').expect(200);
 
       expect(response.body).toEqual({ status: 'ok', database: 'connected' });
+    });
+
+    it('allows every origin listed in CORS_ORIGIN and blocks others', async () => {
+      const local = await request(app.getHttpServer())
+        .get('/health')
+        .set('Origin', 'http://localhost:5173')
+        .expect(200);
+      expect(local.headers['access-control-allow-origin']).toBe('http://localhost:5173');
+
+      const prod = await request(app.getHttpServer())
+        .get('/health')
+        .set('Origin', 'https://gean-bebidas.vercel.app')
+        .expect(200);
+      expect(prod.headers['access-control-allow-origin']).toBe('https://gean-bebidas.vercel.app');
+
+      const blocked = await request(app.getHttpServer())
+        .get('/health')
+        .set('Origin', 'https://evil.example.com')
+        .expect(200);
+      expect(blocked.headers['access-control-allow-origin']).toBeUndefined();
     });
   });
 
@@ -234,6 +269,7 @@ describe('Gean Bebidas API (e2e)', () => {
       ['get', '/auth/me'],
       ['get', '/admin/products'],
       ['get', `/admin/products/${MISSING_ID}`],
+      ['post', '/admin/products/upload'],
       ['post', '/admin/products'],
       ['put', `/admin/products/${MISSING_ID}`],
       ['patch', `/admin/products/${MISSING_ID}/status`],
@@ -317,20 +353,39 @@ describe('Gean Bebidas API (e2e)', () => {
       [{ name: 'x', price: -1, category: 'ice' }, 'negative price'],
       [{ name: 'x', price: 1, category: 'wine' }, 'invalid category'],
       [{ name: 'x', price: 1, category: 'ice', status: 'gone' }, 'invalid status'],
+      [{ name: 'x', price: 1, category: 'ice', imageUrl: 'javascript:alert(1)' }, 'unsafe imageUrl'],
     ])('rejects %j (%s) with 400', async (body) => {
       await request(app.getHttpServer()).post('/admin/products').set(auth()).send(body).expect(400);
     });
 
-    it('updates a product', async () => {
+    it('updates a product and clears optional fields when sent as null or empty string', async () => {
       const product = await productModel.findOne({ name: 'Skol Lata 350ml' });
 
-      const response = await request(app.getHttpServer())
+      const updated = await request(app.getHttpServer())
         .put(`/admin/products/${product!.id}`)
         .set(auth())
-        .send({ price: 5.9, description: 'Updated' })
+        .send({
+          price: 5.9,
+          description: 'Updated',
+          imageUrl: 'https://cdn.geanbebidas.test/products/skol.png',
+        })
         .expect(200);
 
-      expect(response.body).toMatchObject({ name: 'Skol Lata 350ml', price: 5.9, description: 'Updated' });
+      expect(updated.body).toMatchObject({
+        name: 'Skol Lata 350ml',
+        price: 5.9,
+        description: 'Updated',
+        imageUrl: 'https://cdn.geanbebidas.test/products/skol.png',
+      });
+
+      const cleared = await request(app.getHttpServer())
+        .put(`/admin/products/${product!.id}`)
+        .set(auth())
+        .send({ imageUrl: null, description: '' })
+        .expect(200);
+
+      expect(cleared.body.imageUrl).toBeUndefined();
+      expect(cleared.body.description).toBeUndefined();
     });
 
     it('rejects an invalid update and leaves the product untouched', async () => {
@@ -441,6 +496,58 @@ describe('Gean Bebidas API (e2e)', () => {
         .set(auth())
         .send({ status: 'available' })
         .expect(404);
+    });
+  });
+
+  describe('product image upload (R2)', () => {
+    it('uploads a valid image and returns its public URL', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/admin/products/upload')
+        .set(auth())
+        .attach('file', PNG_BUFFER, { filename: 'skol.png', contentType: 'image/png' })
+        .expect(201);
+
+      expect(response.body.imageUrl).toMatch(
+        /^https:\/\/cdn\.geanbebidas\.test\/products\/[0-9a-f-]+\.png$/,
+      );
+      expect(r2Send).toHaveBeenCalledTimes(1);
+      expect(r2Send.mock.calls[0][0]).toBeInstanceOf(PutObjectCommand);
+    });
+
+    it('rejects a missing file, SVG, and spoofed image signatures with 400', async () => {
+      await request(app.getHttpServer()).post('/admin/products/upload').set(auth()).expect(400);
+
+      await request(app.getHttpServer())
+        .post('/admin/products/upload')
+        .set(auth())
+        .attach('file', Buffer.from('<svg></svg>'), {
+          filename: 'icon.svg',
+          contentType: 'image/svg+xml',
+        })
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .post('/admin/products/upload')
+        .set(auth())
+        .attach('file', Buffer.from('not-a-png'), {
+          filename: 'fake.png',
+          contentType: 'image/png',
+        })
+        .expect(400);
+
+      expect(r2Send).not.toHaveBeenCalled();
+    });
+
+    it('rejects images larger than 5 MB with 413', async () => {
+      const oversized = Buffer.concat([PNG_BUFFER, Buffer.alloc(MAX_IMAGE_SIZE_BYTES)]);
+
+      await request(app.getHttpServer())
+        .post('/admin/products/upload')
+        .set(auth())
+        .attach('file', oversized, { filename: 'huge.png', contentType: 'image/png' })
+        .expect(413);
+
+      expect(r2Send).not.toHaveBeenCalled();
     });
   });
 });
