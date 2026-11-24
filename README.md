@@ -51,8 +51,9 @@ Scripts disponíveis:
 | `npm test`           | Roda os testes unitários                |
 | `npm run test:e2e`   | Roda os testes e2e (MongoDB em memória) |
 | `npm run seed`       | Cria índices, o admin e 10 produtos de exemplo |
+| `npm run seed:admin` | Cria índices e cria/atualiza apenas o admin (seguro para produção) |
 
-O seed **substitui todos os produtos** da coleção pelos de exemplo (3 deles esgotados) e cria ou atualiza o admin com `ADMIN_EMAIL` e `ADMIN_PASSWORD`. Use apenas em ambiente de desenvolvimento.
+O `npm run seed` **substitui todos os produtos** da coleção pelos de exemplo (3 deles esgotados) e cria ou atualiza o admin com `ADMIN_EMAIL` e `ADMIN_PASSWORD` — use apenas em desenvolvimento. Em produção, use `npm run seed:admin`.
 
 Os testes e2e sobem um MongoDB em memória (`mongodb-memory-server`) e nunca usam o banco do `.env`. A primeira execução baixa o binário do MongoDB, então demora um pouco mais.
 
@@ -87,9 +88,14 @@ A API fica em `http://localhost:3000` e o banco em `mongodb://localhost:27017/ge
 | `JWT_SECRET`     | Segredo usado para assinar os tokens                           | uma string longa e aleatória    |
 | `JWT_EXPIRES_IN` | Validade do token                                              | `1d`                            |
 | `PORT`           | Porta da API                                                   | `3000`                          |
-| `CORS_ORIGIN`    | Origem permitida do frontend                                   | `http://localhost:5173`         |
-| `ADMIN_EMAIL`    | E-mail do admin criado pelo `npm run seed`                     | `admin@geanbebidas.com`         |
-| `ADMIN_PASSWORD` | Senha do admin criado pelo `npm run seed`                      | uma senha forte                 |
+| `CORS_ORIGIN`          | Origens permitidas do frontend (separadas por vírgula ou `*`)      | `http://localhost:5173`         |
+| `ADMIN_EMAIL`          | E-mail do admin criado pelo `seed` / `seed:admin`                  | `admin@geanbebidas.com`         |
+| `ADMIN_PASSWORD`       | Senha do admin criado pelo `seed` / `seed:admin`                   | uma senha forte                 |
+| `R2_ACCOUNT_ID`        | ID da conta Cloudflare (opcional em dev; exigido para upload)      | `abc123...`                     |
+| `R2_ACCESS_KEY_ID`     | Access Key ID do token R2                                          | `...`                           |
+| `R2_SECRET_ACCESS_KEY` | Secret Access Key do token R2                                      | `...`                           |
+| `R2_BUCKET_NAME`       | Nome do bucket no Cloudflare R2                                    | `gean-bebidas`                  |
+| `R2_PUBLIC_URL`        | URL pública base do bucket R2 (r2.dev ou domínio próprio)          | `https://pub-xxx.r2.dev`        |
 
 No Atlas, mantenha o nome do banco (`gean-bebidas`) logo antes do `?` na URI. Sem ele o Mongo usa o banco `test`.
 
@@ -115,6 +121,7 @@ Rotas protegidas exigem o header `Authorization: Bearer <token>`. Sem token vál
 | GET    | `/auth/me`                    | Protegido | Retorna `{ id, email }` do admin autenticado                              |
 | GET    | `/admin/products`             | Protegido | Lista todos os produtos. Filtros: `?category=`, `?status=` e `?search=`   |
 | GET    | `/admin/products/:id`         | Protegido | Detalhe de qualquer produto por ID, inclusive esgotados                   |
+| POST   | `/admin/products/upload`      | Protegido | Upload de imagem (`multipart/form-data`, campo `file`, até 5 MB) para R2  |
 | POST   | `/admin/products`             | Protegido | Cria produto                                                              |
 | PUT    | `/admin/products/:id`         | Protegido | Atualiza produto                                                          |
 | PATCH  | `/admin/products/:id/status`  | Protegido | Altera o status (`available` ou `out-of-stock`)                           |
