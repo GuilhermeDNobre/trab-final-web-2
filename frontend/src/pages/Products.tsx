@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Alert, Box, Container, Drawer, Grid, Snackbar } from '@mui/material';
+import { Alert, Box, Button, Container, Drawer, Grid, Snackbar } from '@mui/material';
 import { CATEGORIES } from '../constants/categories';
 import { useCart } from '../hooks/useCart';
 import { TopInfoBar } from '../components/layout/TopInfoBar';
@@ -9,8 +9,8 @@ import { SearchHeader } from '../components/products/SearchHeader';
 import { FiltersSidebar } from '../components/products/FiltersSidebar';
 import { ActiveFiltersBar } from '../components/products/ActiveFiltersBar';
 import { ProductsGrid } from '../components/products/ProductsGrid';
-import { MOCK_PRODUCTS } from '../constants/mockProducts';
-import { api } from '../services/api';
+import { getApiErrorMessage } from '../services/api';
+import { listPublicProducts } from '../services/productsService';
 import type { Product, ProductCategory } from '../types/Product';
 import {
   filterAndSortProducts,
@@ -37,6 +37,8 @@ export const Products = () => {
 
   const [products, setProducts] = useState<readonly Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadCount, setReloadCount] = useState(0);
   const [filters, setFilters] = useState<ProductFilters>(() => ({
     ...INITIAL_FILTERS,
     categories: isValidCategory(initialCategory) ? [initialCategory] : [],
@@ -48,15 +50,21 @@ export const Products = () => {
   useEffect(() => {
     let isMounted = true;
 
-    const fetchProducts = async () => {
+    const loadProducts = async () => {
       try {
-        const response = await api.get<Product[]>('/products');
+        const data = await listPublicProducts();
         if (isMounted) {
-          setProducts(response.data);
+          setProducts(data);
         }
-      } catch {
+      } catch (error) {
         if (isMounted) {
-          setProducts(MOCK_PRODUCTS);
+          setProducts([]);
+          setLoadError(
+            getApiErrorMessage(
+              error,
+              'Não foi possível carregar o catálogo de produtos.',
+            ),
+          );
         }
       } finally {
         if (isMounted) {
@@ -65,12 +73,18 @@ export const Products = () => {
       }
     };
 
-    void fetchProducts();
+    void loadProducts();
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [reloadCount]);
+
+  const handleRetry = () => {
+    setIsLoading(true);
+    setLoadError(null);
+    setReloadCount((prev) => prev + 1);
+  };
 
   const filteredProducts = useMemo(
     () => filterAndSortProducts(products, filters),
@@ -167,24 +181,43 @@ export const Products = () => {
               </Grid>
 
               <Grid size={{ xs: 12, md: 9 }}>
-                <ActiveFiltersBar
-                  totalResults={filteredProducts.length}
-                  searchTerm={filters.searchTerm}
-                  selectedCategories={filters.categories}
-                  onClearSearch={() => handleSearch('')}
-                  onRemoveCategory={handleToggleCategory}
-                  onOpenMobileFilters={() => setMobileFiltersOpen(true)}
-                />
+                {loadError ? (
+                  <Alert
+                    severity="error"
+                    action={
+                      <Button
+                        color="inherit"
+                        size="small"
+                        onClick={handleRetry}
+                      >
+                        Tentar novamente
+                      </Button>
+                    }
+                  >
+                    {loadError}
+                  </Alert>
+                ) : (
+                  <>
+                    <ActiveFiltersBar
+                      totalResults={filteredProducts.length}
+                      searchTerm={filters.searchTerm}
+                      selectedCategories={filters.categories}
+                      onClearSearch={() => handleSearch('')}
+                      onRemoveCategory={handleToggleCategory}
+                      onOpenMobileFilters={() => setMobileFiltersOpen(true)}
+                    />
 
-                <ProductsGrid
-                  products={paginatedProducts}
-                  isLoading={isLoading}
-                  page={page}
-                  totalPages={totalPages}
-                  onPageChange={setPage}
-                  onAddToCart={handleAddToCart}
-                  onResetFilters={handleResetFilters}
-                />
+                    <ProductsGrid
+                      products={paginatedProducts}
+                      isLoading={isLoading}
+                      page={page}
+                      totalPages={totalPages}
+                      onPageChange={setPage}
+                      onAddToCart={handleAddToCart}
+                      onResetFilters={handleResetFilters}
+                    />
+                  </>
+                )}
               </Grid>
             </Grid>
           </Container>

@@ -10,11 +10,16 @@ import type { CategoryItem } from '../../constants/categories';
 
 interface CategoryCardProps {
   category: CategoryItem;
+  productCount?: number;
   onSelect?: (categoryId: CategoryItem['id']) => void;
 }
 
-export const CategoryCard = ({ category, onSelect }: CategoryCardProps) => {
-  const { id, label, productCount, image, Icon } = category;
+export const CategoryCard = ({
+  category,
+  productCount,
+  onSelect,
+}: CategoryCardProps) => {
+  const { id, label, image, Icon } = category;
 
   return (
     <Card
@@ -68,7 +73,9 @@ export const CategoryCard = ({ category, onSelect }: CategoryCardProps) => {
                 {label}
               </Typography>
               <Typography variant="caption" sx={{ color: 'grey.300' }}>
-                {productCount} {productCount === 1 ? 'Produto' : 'Produtos'}
+                {productCount === undefined
+                  ? 'Ver produtos'
+                  : `${productCount} ${productCount === 1 ? 'Produto' : 'Produtos'}`}
               </Typography>
             </Box>
           </Stack>

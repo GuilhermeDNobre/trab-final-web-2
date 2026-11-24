@@ -1,12 +1,15 @@
 import { Box, Container, Grid, Typography } from '@mui/material';
 import { CATEGORIES, type CategoryItem } from '../../constants/categories';
+import type { ProductCategory } from '../../types/Product';
 import { CategoryCard } from './CategoryCard';
 
 interface CategoriesSectionProps {
+  countsByCategory?: Partial<Record<ProductCategory, number>>;
   onSelectCategory?: (categoryId: CategoryItem['id']) => void;
 }
 
 export const CategoriesSection = ({
+  countsByCategory,
   onSelectCategory,
 }: CategoriesSectionProps) => (
   <Box
@@ -24,7 +27,11 @@ export const CategoriesSection = ({
       <Grid container spacing={3}>
         {CATEGORIES.map((category) => (
           <Grid key={category.id} size={{ xs: 12, sm: 6, md: 4 }}>
-            <CategoryCard category={category} onSelect={onSelectCategory} />
+            <CategoryCard
+              category={category}
+              productCount={countsByCategory?.[category.id]}
+              onSelect={onSelectCategory}
+            />
           </Grid>
         ))}
       </Grid>
