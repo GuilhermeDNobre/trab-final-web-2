@@ -18,7 +18,21 @@ describe('validateEnv', () => {
     );
   });
 
-  it('treats an empty value as missing', () => {
+  it('treats an empty or blank value as missing', () => {
     expect(() => validateEnv({ MONGODB_URI: '', JWT_SECRET: 'secret' })).toThrow('MONGODB_URI');
+    expect(() => validateEnv({ MONGODB_URI: '   ', JWT_SECRET: 'secret' })).toThrow('MONGODB_URI');
+  });
+
+  it('rejects invalid numeric settings when provided', () => {
+    const base = { MONGODB_URI: 'mongodb://localhost/test', JWT_SECRET: 'secret' };
+
+    expect(() => validateEnv({ ...base, PORT: 'abc' })).toThrow('PORT');
+    expect(() => validateEnv({ ...base, PORT: '70000' })).toThrow('PORT');
+    expect(() => validateEnv({ ...base, LOGIN_RATE_LIMIT_MAX: '0' })).toThrow(
+      'LOGIN_RATE_LIMIT_MAX',
+    );
+    expect(() => validateEnv({ ...base, LOGIN_RATE_LIMIT_WINDOW_MS: '-10' })).toThrow(
+      'LOGIN_RATE_LIMIT_WINDOW_MS',
+    );
   });
 });
