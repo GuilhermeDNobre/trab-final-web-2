@@ -88,7 +88,9 @@ A API fica em `http://localhost:3000` e o banco em `mongodb://localhost:27017/ge
 | `JWT_SECRET`     | Segredo usado para assinar os tokens                           | uma string longa e aleatória    |
 | `JWT_EXPIRES_IN` | Validade do token                                              | `1d`                            |
 | `PORT`           | Porta da API                                                   | `3000`                          |
-| `CORS_ORIGIN`          | Origens permitidas do frontend (separadas por vírgula ou `*`)      | `http://localhost:5173`         |
+| `CORS_ORIGIN`                 | Origens permitidas do frontend (separadas por vírgula ou `*`)       | `http://localhost:5173`         |
+| `LOGIN_RATE_LIMIT_MAX`        | Máximo de tentativas de login por IP na janela (padrão: `10`)       | `10`                            |
+| `LOGIN_RATE_LIMIT_WINDOW_MS`  | Janela do rate limit de login em ms (padrão: `60000`)               | `60000`                         |
 | `ADMIN_EMAIL`          | E-mail do admin criado pelo `seed` / `seed:admin`                  | `admin@geanbebidas.com`         |
 | `ADMIN_PASSWORD`       | Senha do admin criado pelo `seed` / `seed:admin`                   | uma senha forte                 |
 | `R2_ACCOUNT_ID`        | ID da conta Cloudflare (opcional em dev; exigido para upload)      | `abc123...`                     |
@@ -128,6 +130,16 @@ Rotas protegidas exigem o header `Authorization: Bearer <token>`. Sem token vál
 | DELETE | `/admin/products/:id`         | Protegido | Remove produto                                                            |
 
 Categorias válidas: `beers`, `spirits`, `soft-drinks`, `snacks`, `ice`.
+
+## Deploy (produção)
+
+### Backend (Render ou Railway com Docker)
+
+1. Crie o banco no **MongoDB Atlas** e um bucket público no **Cloudflare R2** (para upload de imagens).
+2. No Render/Railway, aponte o serviço para o diretório `backend/` usando o `Dockerfile`.
+3. Configure as variáveis de ambiente: `MONGODB_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `CORS_ORIGIN` (URL do frontend na Vercel), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`, além de `ADMIN_EMAIL` e `ADMIN_PASSWORD`.
+4. Defina o health check como `GET /health`.
+5. Após o primeiro deploy, crie o usuário administrador sem apagar produtos rodando `npm run seed:admin` no ambiente do backend.
 
 ## Fluxo de trabalho
 
