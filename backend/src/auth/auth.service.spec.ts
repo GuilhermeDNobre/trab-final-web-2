@@ -11,7 +11,7 @@ describe('AuthService', () => {
   let service: AuthService;
   let passwordHash: string;
   const select = vi.fn();
-  const adminModel = { findOne: vi.fn() };
+  const adminModel = { findOne: vi.fn(), findById: vi.fn() };
   const jwtService = { signAsync: vi.fn() };
 
   beforeAll(async () => {
@@ -67,5 +67,34 @@ describe('AuthService', () => {
       service.login({ email: 'nobody@example.com', password: 'whatever' }),
     ).rejects.toThrow('Invalid credentials');
     expect(jwtService.signAsync).not.toHaveBeenCalled();
+  });
+
+  describe('getProfile', () => {
+    const validId = '64b000000000000000000001';
+
+    it('returns the admin id and email when found', async () => {
+      adminModel.findById.mockResolvedValue({
+        id: validId,
+        email: 'admin@geanbebidas.com',
+        password: passwordHash,
+      });
+
+      await expect(service.getProfile(validId)).resolves.toEqual({
+        id: validId,
+        email: 'admin@geanbebidas.com',
+      });
+      expect(adminModel.findById).toHaveBeenCalledWith(validId);
+    });
+
+    it('rejects when the admin no longer exists', async () => {
+      adminModel.findById.mockResolvedValue(null);
+
+      await expect(service.getProfile(validId)).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+
+    it('rejects a malformed admin id without hitting the database', async () => {
+      await expect(service.getProfile('not-an-id')).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(adminModel.findById).not.toHaveBeenCalled();
+    });
   });
 });
