@@ -17,10 +17,17 @@ const BRL_FORMATTER = new Intl.NumberFormat('pt-BR', {
 export const formatPriceBRL = (value: number): string =>
   BRL_FORMATTER.format(value);
 
+export const normalizeSearchText = (value: string): string =>
+  value
+    .trim()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+
 const matchesSearch = (product: Product, term: string): boolean => {
-  const normalized = term.trim().toLowerCase();
+  const normalized = normalizeSearchText(term);
   if (!normalized) return true;
-  return product.name.toLowerCase().includes(normalized);
+  return normalizeSearchText(product.name).includes(normalized);
 };
 
 const matchesCategory = (
@@ -50,7 +57,7 @@ export const filterAndSortProducts = (
 ): Product[] => {
   const filtered = products.filter(
     (product) =>
-      product.status === 'disponivel' &&
+      product.status === 'available' &&
       matchesSearch(product, filters.searchTerm) &&
       matchesCategory(product, filters.categories) &&
       matchesPriceRange(product, filters.priceRange),

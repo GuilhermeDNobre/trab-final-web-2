@@ -14,7 +14,18 @@ export const loadCartFromStorage = (key = CART_STORAGE_KEY): CartItem[] => {
     const raw = localStorage.getItem(key);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as CartItem[]) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item): item is CartItem =>
+        Boolean(item) &&
+        typeof item === 'object' &&
+        typeof item.quantity === 'number' &&
+        item.quantity > 0 &&
+        Boolean(item.product) &&
+        typeof item.product._id === 'string' &&
+        !item.product._id.startsWith('mock-') &&
+        typeof item.product.price === 'number',
+    );
   } catch {
     return [];
   }

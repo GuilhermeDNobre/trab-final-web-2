@@ -18,11 +18,11 @@ export interface CategoryDistributionItem {
 }
 
 const CATEGORY_COLORS: Record<ProductCategory, string> = {
-  cervejas: '#B71C1C',
-  destilados: '#E65100',
-  nao_alcolicos: '#2E7D32',
-  petiscos: '#F9A825',
-  gelo: '#0277BD',
+  beers: '#B71C1C',
+  spirits: '#E65100',
+  'soft-drinks': '#2E7D32',
+  snacks: '#F9A825',
+  ice: '#0277BD',
 };
 
 const CATEGORY_LABELS: Record<ProductCategory, string> = CATEGORIES.reduce(
@@ -48,7 +48,7 @@ export const computeCatalogMetrics = (
   }
 
   const availableCount = products.filter(
-    (product) => product.status === 'disponivel',
+    (product) => product.status === 'available',
   ).length;
   const unavailableCount = total - availableCount;
   const availablePercentage = Math.round((availableCount / total) * 100);

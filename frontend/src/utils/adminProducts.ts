@@ -1,5 +1,6 @@
 import type { Product, ProductCategory, ProductStatus } from '../types/Product';
 import { getCategoryLabel } from './adminMetrics';
+import { normalizeSearchText } from './products';
 
 export type AdminSortField =
   | 'name'
@@ -47,12 +48,12 @@ export const filterAndSortAdminProducts = (
   products: readonly Product[],
   filters: AdminProductFilters,
 ): Product[] => {
-  const normalizedSearch = filters.searchTerm.trim().toLowerCase();
+  const normalizedSearch = normalizeSearchText(filters.searchTerm);
 
   const filtered = products.filter((product) => {
     const matchesSearch =
       !normalizedSearch ||
-      product.name.toLowerCase().includes(normalizedSearch);
+      normalizeSearchText(product.name).includes(normalizedSearch);
     const matchesCategory =
       filters.category === 'all' || product.category === filters.category;
     const matchesStatus =

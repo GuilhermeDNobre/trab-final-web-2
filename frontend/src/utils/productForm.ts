@@ -1,6 +1,18 @@
 import type { Product, ProductCategory, ProductStatus } from '../types/Product';
 
 export const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+export const MAX_PRODUCT_NAME_LENGTH = 120;
+export const MAX_PRODUCT_DESCRIPTION_LENGTH = 500;
+
+export const ALLOWED_IMAGE_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/avif',
+] as const;
+
+export const ACCEPTED_IMAGE_TYPES = ALLOWED_IMAGE_MIME_TYPES.join(',');
 
 export interface ProductFormValues {
   name: string;
@@ -19,16 +31,16 @@ export interface ProductPayload {
   price: number;
   category: ProductCategory;
   status: ProductStatus;
-  imageFile?: File;
-  imageUrl?: string;
-  description?: string;
+  imageFile: File | null;
+  imageUrl: string | null;
+  description: string | null;
 }
 
 export const INITIAL_PRODUCT_FORM_VALUES: ProductFormValues = {
   name: '',
   price: '',
-  category: 'cervejas',
-  status: 'disponivel',
+  category: 'beers',
+  status: 'available',
   imageFile: null,
   imagePreviewUrl: '',
   description: '',
@@ -53,8 +65,12 @@ export const getInitialFormValues = (
 };
 
 export const validateImageFile = (file: File): string | null => {
-  if (!file.type.startsWith('image/')) {
-    return 'Selecione um arquivo de imagem válido (PNG, JPG, WEBP, etc.).';
+  if (
+    !ALLOWED_IMAGE_MIME_TYPES.includes(
+      file.type as (typeof ALLOWED_IMAGE_MIME_TYPES)[number],
+    )
+  ) {
+    return 'Formato não suportado. Use JPG, PNG, WEBP, GIF ou AVIF.';
   }
 
   if (file.size > MAX_IMAGE_SIZE_BYTES) {
@@ -69,14 +85,21 @@ export const validateProductForm = (
 ): ProductFormErrors => {
   const errors: ProductFormErrors = {};
   const trimmedName = values.name.trim();
+  const trimmedDescription = values.description.trim();
   const parsedPrice = Number(values.price.replace(',', '.'));
 
   if (trimmedName.length < 2) {
     errors.name = 'Informe um nome com pelo menos 2 caracteres.';
+  } else if (trimmedName.length > MAX_PRODUCT_NAME_LENGTH) {
+    errors.name = `O nome deve ter no máximo ${MAX_PRODUCT_NAME_LENGTH} caracteres.`;
   }
 
   if (!values.price.trim() || Number.isNaN(parsedPrice) || parsedPrice <= 0) {
     errors.price = 'Informe um preço válido maior que zero.';
+  }
+
+  if (trimmedDescription.length > MAX_PRODUCT_DESCRIPTION_LENGTH) {
+    errors.description = `A descrição deve ter no máximo ${MAX_PRODUCT_DESCRIPTION_LENGTH} caracteres.`;
   }
 
   if (values.imageFile) {
@@ -94,46 +117,15 @@ export const hasProductFormErrors = (errors: ProductFormErrors): boolean =>
 
 export const toProductPayload = (values: ProductFormValues): ProductPayload => {
   const trimmedDescription = values.description.trim();
+  const trimmedImageUrl = values.imagePreviewUrl.trim();
 
   return {
     name: values.name.trim(),
     price: Number(Number(values.price.replace(',', '.')).toFixed(2)),
     category: values.category,
     status: values.status,
-    ...(values.imageFile ? { imageFile: values.imageFile } : {}),
-    ...(values.imagePreviewUrl ? { imageUrl: values.imagePreviewUrl } : {}),
-    ...(trimmedDescription ? { description: trimmedDescription } : {}),
+    imageFile: values.imageFile,
+    imageUrl: values.imageFile ? null : trimmedImageUrl || null,
+    description: trimmedDescription || null,
   };
 };
-
-const toProductFields = (
-  payload: ProductPayload,
-): Omit<Product, '_id' | 'createdAt' | 'updatedAt'> => ({
-  name: payload.name,
-  price: payload.price,
-  category: payload.category,
-  status: payload.status,
-  ...(payload.imageUrl ? { imageUrl: payload.imageUrl } : {}),
-  ...(payload.description ? { description: payload.description } : {}),
-});
-
-export const createProductRecord = (
-  payload: ProductPayload,
-  now: string,
-): Product => ({
-  _id: `local-${Date.now()}`,
-  ...toProductFields(payload),
-  createdAt: now,
-  updatedAt: now,
-});
-
-export const updateProductRecord = (
-  existing: Product,
-  payload: ProductPayload,
-  now: string,
-): Product => ({
-  _id: existing._id,
-  ...toProductFields(payload),
-  createdAt: existing.createdAt,
-  updatedAt: now,
-});

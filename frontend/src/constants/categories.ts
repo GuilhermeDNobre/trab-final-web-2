@@ -11,44 +11,38 @@ import type { ProductCategory } from '../types/Product';
 export interface CategoryItem {
   id: ProductCategory;
   label: string;
-  productCount: number;
   image: string;
   Icon: ComponentType<SvgIconProps>;
 }
 
 export const CATEGORIES: readonly CategoryItem[] = [
   {
-    id: 'cervejas',
+    id: 'beers',
     label: 'Cervejas',
-    productCount: 3,
     image: categoryImage,
     Icon: SportsBarIcon,
   },
   {
-    id: 'destilados',
+    id: 'spirits',
     label: 'Destilados',
-    productCount: 5,
     image: categoryImage,
     Icon: LocalBarIcon,
   },
   {
-    id: 'nao_alcolicos',
+    id: 'soft-drinks',
     label: 'Sem Álcool',
-    productCount: 7,
     image: categoryImage,
     Icon: LocalDrinkIcon,
   },
   {
-    id: 'petiscos',
+    id: 'snacks',
     label: 'Petiscos',
-    productCount: 4,
     image: categoryImage,
     Icon: FastfoodIcon,
   },
   {
-    id: 'gelo',
+    id: 'ice',
     label: 'Gelo',
-    productCount: 2,
     image: categoryImage,
     Icon: AcUnitIcon,
   },
