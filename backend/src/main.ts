@@ -7,6 +7,7 @@ import { setupApp } from './app.setup.js';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   setupApp(app);
+  app.enableShutdownHooks();
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Gean Bebidas API')
@@ -17,7 +18,7 @@ async function bootstrap() {
   SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, swaggerConfig));
 
   const port = Number(app.get(ConfigService).get('PORT')) || 3000;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   console.log(`API listening on port ${port} (docs at /docs)`);
 }
 
