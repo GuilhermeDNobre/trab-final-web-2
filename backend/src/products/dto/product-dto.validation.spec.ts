@@ -2,6 +2,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { describe, expect, it } from 'vitest';
 import { CreateProductDto } from './create-product.dto.js';
+import { ListAdminProductsQueryDto } from './list-admin-products-query.dto.js';
 import { ListProductsQueryDto } from './list-products-query.dto.js';
 import { UpdateProductStatusDto } from './update-product-status.dto.js';
 import { UpdateProductDto } from './update-product.dto.js';
@@ -99,5 +100,28 @@ describe('ListProductsQueryDto', () => {
 
   it('rejects an unknown category', async () => {
     expect(await errorsFor(ListProductsQueryDto, { category: 'wine' })).toEqual(['category']);
+  });
+});
+
+describe('ListAdminProductsQueryDto', () => {
+  it('accepts valid status, category and search filters', async () => {
+    expect(
+      await errorsFor(ListAdminProductsQueryDto, {
+        category: 'beers',
+        search: 'skol',
+        status: 'out-of-stock',
+      }),
+    ).toEqual([]);
+  });
+
+  it('treats an empty status as not provided', async () => {
+    const dto = plainToInstance(ListAdminProductsQueryDto, { status: '  ' });
+
+    expect(dto.status).toBeUndefined();
+    expect(await validate(dto)).toEqual([]);
+  });
+
+  it('rejects an unknown status', async () => {
+    expect(await errorsFor(ListAdminProductsQueryDto, { status: 'gone' })).toEqual(['status']);
   });
 });

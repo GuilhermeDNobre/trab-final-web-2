@@ -2,7 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ProductsService } from './products.service.js';
+import { buildSearchRegex, ProductsService } from './products.service.js';
 import { Product } from './schemas/product.schema.js';
 
 describe('ProductsService', () => {
@@ -10,6 +10,7 @@ describe('ProductsService', () => {
   let sort: ReturnType<typeof vi.fn>;
   const productModel = {
     find: vi.fn(),
+    findById: vi.fn(),
     findOne: vi.fn(),
     create: vi.fn(),
     findByIdAndUpdate: vi.fn(),
@@ -44,27 +45,45 @@ describe('ProductsService', () => {
       expect(productModel.find).toHaveBeenCalledWith({});
     });
 
+    it('filters by status for the admin when provided', async () => {
+      await service.findAll({ status: 'out-of-stock' }, false);
+
+      expect(productModel.find).toHaveBeenCalledWith({ status: 'out-of-stock' });
+    });
+
+    it('always enforces available status on the storefront even if status is passed (RN01)', async () => {
+      await service.findAll({ status: 'out-of-stock' }, true);
+
+      expect(productModel.find).toHaveBeenCalledWith({ status: 'available' });
+    });
+
     it('filters by category', async () => {
       await service.findAll({ category: 'beers' }, true);
 
       expect(productModel.find).toHaveBeenCalledWith({ status: 'available', category: 'beers' });
     });
 
-    it('searches by name ignoring case', async () => {
-      await service.findAll({ search: 'skol' }, true);
+    it('searches by name ignoring case and accents', async () => {
+      await service.findAll({ search: 'guarana' }, true);
 
       expect(productModel.find).toHaveBeenCalledWith({
         status: 'available',
-        name: { $regex: 'skol', $options: 'i' },
+        name: { $regex: buildSearchRegex('guarana'), $options: 'i' },
       });
+
+      const pattern = new RegExp(buildSearchRegex('guarana'), 'i');
+      expect(pattern.test('Guaraná Antarctica Lata 350ml')).toBe(true);
+      expect(new RegExp(buildSearchRegex('Água'), 'i').test('Agua Mineral')).toBe(true);
+      expect(new RegExp(buildSearchRegex('acai'), 'i').test('Açaí 500ml')).toBe(true);
     });
 
     it('escapes regex special characters in the search term', async () => {
       await service.findAll({ search: 'a.*(b)' }, false);
 
-      expect(productModel.find).toHaveBeenCalledWith({
-        name: { $regex: 'a\\.\\*\\(b\\)', $options: 'i' },
-      });
+      const query = productModel.find.mock.calls[0][0] as { name: { $regex: string; $options: string } };
+      const pattern = new RegExp(query.name.$regex, query.name.$options);
+      expect(pattern.test('a.*(b)')).toBe(true);
+      expect(pattern.test('aXYZ(b)')).toBe(false);
     });
 
     it('ignores a blank search term', async () => {
@@ -77,6 +96,22 @@ describe('ProductsService', () => {
       await service.findAll({}, true);
 
       expect(sort).toHaveBeenCalledWith({ name: 1 });
+    });
+  });
+
+  describe('findById', () => {
+    it('returns the product regardless of status', async () => {
+      const product = { _id: 'id-1', status: 'out-of-stock' };
+      productModel.findById.mockResolvedValue(product);
+
+      await expect(service.findById('id-1')).resolves.toBe(product);
+      expect(productModel.findById).toHaveBeenCalledWith('id-1');
+    });
+
+    it('throws NotFoundException when missing', async () => {
+      productModel.findById.mockResolvedValue(null);
+
+      await expect(service.findById('id-1')).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 

@@ -2,13 +2,35 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
 import { CreateProductDto } from './dto/create-product.dto.js';
-import { ListProductsQueryDto } from './dto/list-products-query.dto.js';
+import { ListAdminProductsQueryDto } from './dto/list-admin-products-query.dto.js';
 import { UpdateProductDto } from './dto/update-product.dto.js';
 import type { ProductStatus } from './product.constants.js';
 import { Product } from './schemas/product.schema.js';
 
+const ACCENT_GROUPS: Record<string, string> = {
+  a: '[aáàâãäÁÀÂÃÄ]',
+  e: '[eéèêëÉÈÊË]',
+  i: '[iíìîïÍÌÎÏ]',
+  o: '[oóòôõöÓÒÔÕÖ]',
+  u: '[uúùûüÚÙÛÜ]',
+  c: '[cçÇ]',
+  n: '[nñÑ]',
+};
+
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export function buildSearchRegex(value: string): string {
+  const normalized = value
+    .trim()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '');
+
+  return escapeRegex(normalized).replace(
+    /[aeiounc]/gi,
+    (char) => ACCENT_GROUPS[char.toLowerCase()] ?? char,
+  );
 }
 
 @Injectable()
@@ -16,20 +38,30 @@ export class ProductsService {
   constructor(@InjectModel(Product.name) private readonly productModel: Model<Product>) {}
 
   // onlyAvailable = true is the storefront view (RN01)
-  findAll(query: ListProductsQueryDto, onlyAvailable: boolean) {
+  findAll(query: ListAdminProductsQueryDto, onlyAvailable: boolean) {
     const filter: Record<string, unknown> = {};
 
     if (onlyAvailable) {
       filter.status = 'available';
+    } else if (query.status) {
+      filter.status = query.status;
     }
     if (query.category) {
       filter.category = query.category;
     }
     if (query.search?.trim()) {
-      filter.name = { $regex: escapeRegex(query.search.trim()), $options: 'i' };
+      filter.name = { $regex: buildSearchRegex(query.search), $options: 'i' };
     }
 
     return this.productModel.find(filter).sort({ name: 1 });
+  }
+
+  async findById(id: string) {
+    const product = await this.productModel.findById(id);
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+    return product;
   }
 
   async findAvailableById(id: string) {

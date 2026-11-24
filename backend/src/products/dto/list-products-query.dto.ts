@@ -3,7 +3,7 @@ import { Transform } from 'class-transformer';
 import { IsIn, IsOptional, IsString } from 'class-validator';
 import { PRODUCT_CATEGORIES, type ProductCategory } from '../product.constants.js';
 
-const emptyToUndefined = ({ value }: { value: unknown }) =>
+export const emptyToUndefined = ({ value }: { value: unknown }) =>
   typeof value === 'string' && value.trim() === '' ? undefined : value;
 
 export class ListProductsQueryDto {

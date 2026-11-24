@@ -15,7 +15,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { ParseObjectIdPipe } from '../common/parse-object-id.pipe.js';
 import { CreateProductDto } from './dto/create-product.dto.js';
-import { ListProductsQueryDto } from './dto/list-products-query.dto.js';
+import { ListAdminProductsQueryDto } from './dto/list-admin-products-query.dto.js';
 import { UpdateProductStatusDto } from './dto/update-product-status.dto.js';
 import { UpdateProductDto } from './dto/update-product.dto.js';
 import { ProductsService } from './products.service.js';
@@ -31,8 +31,14 @@ export class AdminProductsController {
 
   @Get()
   @ApiOperation({ summary: 'List all products, including out-of-stock ones' })
-  findAll(@Query() query: ListProductsQueryDto) {
+  findAll(@Query() query: ListAdminProductsQueryDto) {
     return this.productsService.findAll(query, false);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get any product by id, including out-of-stock ones' })
+  findOne(@Param('id', ParseObjectIdPipe) id: string) {
+    return this.productsService.findById(id);
   }
 
   @Post()
