@@ -75,8 +75,8 @@ export const AdminProductsToolbar = ({
             }
           >
             <MenuItem value="all">Todos os status</MenuItem>
-            <MenuItem value="disponivel">Disponível</MenuItem>
-            <MenuItem value="indisponivel">Indisponível</MenuItem>
+            <MenuItem value="available">Disponível</MenuItem>
+            <MenuItem value="out-of-stock">Esgotado</MenuItem>
           </Select>
         </FormControl>
 

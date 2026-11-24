@@ -10,18 +10,20 @@ import type { Product } from '../../types/Product';
 
 interface DeleteProductDialogProps {
   product: Product | null;
+  isDeleting?: boolean;
   onClose: () => void;
   onConfirm: () => void;
 }
 
 export const DeleteProductDialog = ({
   product,
+  isDeleting = false,
   onClose,
   onConfirm,
 }: DeleteProductDialogProps) => (
   <Dialog
     open={Boolean(product)}
-    onClose={onClose}
+    onClose={isDeleting ? undefined : onClose}
     fullWidth
     maxWidth="xs"
     aria-labelledby="delete-product-dialog-title"
@@ -39,11 +41,16 @@ export const DeleteProductDialog = ({
     </DialogContent>
 
     <DialogActions sx={{ px: 3, pb: 2 }}>
-      <Button onClick={onClose} color="inherit">
+      <Button onClick={onClose} color="inherit" disabled={isDeleting}>
         Cancelar
       </Button>
-      <Button onClick={onConfirm} variant="contained" color="error">
-        Excluir
+      <Button
+        onClick={onConfirm}
+        variant="contained"
+        color="error"
+        disabled={isDeleting}
+      >
+        {isDeleting ? 'Excluindo...' : 'Excluir'}
       </Button>
     </DialogActions>
   </Dialog>

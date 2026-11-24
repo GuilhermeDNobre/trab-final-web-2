@@ -59,7 +59,7 @@ export const RecentProductsCard = ({ products }: RecentProductsCardProps) => (
     ) : (
       <List disablePadding>
         {products.map((product, index) => {
-          const isAvailable = product.status === 'disponivel';
+          const isAvailable = product.status === 'available';
 
           return (
             <Box key={product._id}>
@@ -106,7 +106,7 @@ export const RecentProductsCard = ({ products }: RecentProductsCardProps) => (
                   sx={{ alignItems: 'center', ml: 'auto' }}
                 >
                   <Chip
-                    label={isAvailable ? 'Disponível' : 'Indisponível'}
+                    label={isAvailable ? 'Disponível' : 'Esgotado'}
                     size="small"
                     color={isAvailable ? 'success' : 'default'}
                     variant="outlined"

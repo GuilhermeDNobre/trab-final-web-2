@@ -3,8 +3,10 @@ import {
   Box,
   Chip,
   IconButton,
+  LinearProgress,
   Paper,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -32,9 +34,12 @@ interface AdminProductsTableProps {
   rowsPerPage: number;
   sortField: AdminSortField;
   sortOrder: SortOrder;
+  isLoading?: boolean;
+  updatingStatusId?: string | null;
   onSortChange: (field: AdminSortField) => void;
   onPageChange: (newPage: number) => void;
   onRowsPerPageChange: (newRowsPerPage: number) => void;
+  onToggleStatus?: (product: Product) => void;
   onEdit?: (product: Product) => void;
   onDelete?: (product: Product) => void;
 }
@@ -60,9 +65,12 @@ export const AdminProductsTable = ({
   rowsPerPage,
   sortField,
   sortOrder,
+  isLoading = false,
+  updatingStatusId = null,
   onSortChange,
   onPageChange,
   onRowsPerPageChange,
+  onToggleStatus,
   onEdit,
   onDelete,
 }: AdminProductsTableProps) => (
@@ -74,6 +82,7 @@ export const AdminProductsTable = ({
       overflow: 'hidden',
     }}
   >
+    {isLoading && <LinearProgress />}
     <TableContainer>
       <Table sx={{ minWidth: 680 }} aria-label="Tabela de produtos">
         <TableHead>
@@ -105,13 +114,16 @@ export const AdminProductsTable = ({
             <TableRow>
               <TableCell colSpan={6} sx={{ py: 6, textAlign: 'center' }}>
                 <Typography variant="body2" color="text.secondary">
-                  Nenhum produto encontrado com os filtros selecionados.
+                  {isLoading
+                    ? 'Carregando produtos...'
+                    : 'Nenhum produto encontrado com os filtros selecionados.'}
                 </Typography>
               </TableCell>
             </TableRow>
           ) : (
             products.map((product) => {
-              const isAvailable = product.status === 'disponivel';
+              const isAvailable = product.status === 'available';
+              const isUpdatingStatus = updatingStatusId === product._id;
 
               return (
                 <TableRow key={product._id} hover>
@@ -146,12 +158,36 @@ export const AdminProductsTable = ({
                   </TableCell>
 
                   <TableCell>
-                    <Chip
-                      label={isAvailable ? 'Disponível' : 'Indisponível'}
-                      size="small"
-                      color={isAvailable ? 'success' : 'default'}
-                      variant="outlined"
-                    />
+                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                      {onToggleStatus && (
+                        <Tooltip
+                          title={
+                            isAvailable
+                              ? 'Marcar como esgotado'
+                              : 'Marcar como disponível'
+                          }
+                        >
+                          <Switch
+                            size="small"
+                            color="success"
+                            checked={isAvailable}
+                            disabled={isUpdatingStatus}
+                            onChange={() => onToggleStatus(product)}
+                            slotProps={{
+                              input: {
+                                'aria-label': `Alterar disponibilidade de ${product.name}`,
+                              },
+                            }}
+                          />
+                        </Tooltip>
+                      )}
+                      <Chip
+                        label={isAvailable ? 'Disponível' : 'Esgotado'}
+                        size="small"
+                        color={isAvailable ? 'success' : 'default'}
+                        variant="outlined"
+                      />
+                    </Stack>
                   </TableCell>
 
                   <TableCell>

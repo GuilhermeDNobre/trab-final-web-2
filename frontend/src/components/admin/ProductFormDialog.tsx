@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import {
+  Alert,
   Avatar,
   Box,
   Button,
@@ -25,6 +26,7 @@ import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import { CATEGORIES } from '../../constants/categories';
 import type { Product, ProductCategory, ProductStatus } from '../../types/Product';
 import {
+  ACCEPTED_IMAGE_TYPES,
   getInitialFormValues,
   hasProductFormErrors,
   toProductPayload,
@@ -40,14 +42,18 @@ import type {
 interface ProductFormDialogProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (payload: ProductPayload) => void;
+  onSubmit: (payload: ProductPayload) => Promise<void> | void;
   initialProduct?: Product | null;
+  isSubmitting?: boolean;
+  submitError?: string | null;
 }
 
 interface ProductFormBodyProps {
   onClose: () => void;
-  onSubmit: (payload: ProductPayload) => void;
+  onSubmit: (payload: ProductPayload) => Promise<void> | void;
   initialProduct: Product | null;
+  isSubmitting: boolean;
+  submitError: string | null;
 }
 
 const readFileAsDataUrl = (file: File): Promise<string> =>
@@ -62,6 +68,8 @@ const ProductFormBody = ({
   onClose,
   onSubmit,
   initialProduct,
+  isSubmitting,
+  submitError,
 }: ProductFormBodyProps) => {
   const [values, setValues] = useState<ProductFormValues>(() =>
     getInitialFormValues(initialProduct),
@@ -137,7 +145,7 @@ const ProductFormBody = ({
       return;
     }
 
-    onSubmit(toProductPayload(values));
+    void onSubmit(toProductPayload(values));
   };
 
   return (
@@ -148,6 +156,8 @@ const ProductFormBody = ({
 
       <DialogContent dividers>
         <Stack spacing={2.5} sx={{ pt: 0.5 }}>
+          {submitError && <Alert severity="error">{submitError}</Alert>}
+
           <TextField
             label="Nome do produto"
             placeholder="Ex.: Cerveja Heineken Long Neck 330ml"
@@ -155,6 +165,7 @@ const ProductFormBody = ({
             onChange={(event) => updateField('name', event.target.value)}
             error={Boolean(errors.name)}
             helperText={errors.name}
+            disabled={isSubmitting}
             required
             fullWidth
             autoFocus
@@ -170,6 +181,7 @@ const ProductFormBody = ({
                 onChange={(event) => updateField('price', event.target.value)}
                 error={Boolean(errors.price)}
                 helperText={errors.price}
+                disabled={isSubmitting}
                 required
                 fullWidth
                 slotProps={{
@@ -184,7 +196,7 @@ const ProductFormBody = ({
             </Grid>
 
             <Grid size={{ xs: 12, sm: 4 }}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth required disabled={isSubmitting}>
                 <InputLabel id="product-form-category-label">
                   Categoria
                 </InputLabel>
@@ -206,7 +218,7 @@ const ProductFormBody = ({
             </Grid>
 
             <Grid size={{ xs: 12, sm: 4 }}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth required disabled={isSubmitting}>
                 <InputLabel id="product-form-status-label">Status</InputLabel>
                 <Select
                   labelId="product-form-status-label"
@@ -216,8 +228,8 @@ const ProductFormBody = ({
                     updateField('status', event.target.value as ProductStatus)
                   }
                 >
-                  <MenuItem value="disponivel">Disponível</MenuItem>
-                  <MenuItem value="indisponivel">Indisponível</MenuItem>
+                  <MenuItem value="available">Disponível</MenuItem>
+                  <MenuItem value="out-of-stock">Esgotado</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -264,7 +276,7 @@ const ProductFormBody = ({
                       : 'Nenhuma imagem selecionada'}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  Formatos de imagem (PNG, JPG, WEBP) até 5 MB.
+                  Formatos suportados (JPG, PNG, WEBP, GIF, AVIF) até 5 MB.
                 </Typography>
               </Stack>
 
@@ -273,13 +285,15 @@ const ProductFormBody = ({
                   component="label"
                   variant="outlined"
                   size="small"
+                  disabled={isSubmitting}
                   startIcon={<CloudUploadOutlinedIcon />}
                 >
                   {values.imagePreviewUrl ? 'Alterar' : 'Enviar arquivo'}
                   <input
                     type="file"
-                    accept="image/*"
+                    accept={ACCEPTED_IMAGE_TYPES}
                     hidden
+                    disabled={isSubmitting}
                     onChange={(event) => void handleFileChange(event)}
                   />
                 </Button>
@@ -289,6 +303,7 @@ const ProductFormBody = ({
                     variant="text"
                     color="error"
                     size="small"
+                    disabled={isSubmitting}
                     startIcon={<DeleteOutlinedIcon />}
                     onClick={handleRemoveImage}
                   >
@@ -309,6 +324,9 @@ const ProductFormBody = ({
             placeholder="Detalhes sobre embalagem, volume ou sabor..."
             value={values.description}
             onChange={(event) => updateField('description', event.target.value)}
+            error={Boolean(errors.description)}
+            helperText={errors.description}
+            disabled={isSubmitting}
             multiline
             rows={3}
             fullWidth
@@ -317,11 +335,15 @@ const ProductFormBody = ({
       </DialogContent>
 
       <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={onClose} color="inherit">
+        <Button onClick={onClose} color="inherit" disabled={isSubmitting}>
           Cancelar
         </Button>
-        <Button type="submit" variant="contained">
-          {isEditing ? 'Salvar alterações' : 'Cadastrar produto'}
+        <Button type="submit" variant="contained" disabled={isSubmitting}>
+          {isSubmitting
+            ? 'Salvando...'
+            : isEditing
+              ? 'Salvar alterações'
+              : 'Cadastrar produto'}
         </Button>
       </DialogActions>
     </form>
@@ -333,14 +355,23 @@ export const ProductFormDialog = ({
   onClose,
   onSubmit,
   initialProduct = null,
+  isSubmitting = false,
+  submitError = null,
 }: ProductFormDialogProps) => (
-  <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+  <Dialog
+    open={open}
+    onClose={isSubmitting ? undefined : onClose}
+    fullWidth
+    maxWidth="sm"
+  >
     {open && (
       <ProductFormBody
         key={initialProduct?._id ?? 'new'}
         onClose={onClose}
         onSubmit={onSubmit}
         initialProduct={initialProduct}
+        isSubmitting={isSubmitting}
+        submitError={submitError}
       />
     )}
   </Dialog>

@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Grid, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Grid, LinearProgress, Stack, Typography } from '@mui/material';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
@@ -9,35 +9,76 @@ import { AdminLayout } from '../components/admin/AdminLayout';
 import { CategoryDistributionCard } from '../components/admin/CategoryDistributionCard';
 import { KpiCard } from '../components/admin/KpiCard';
 import { RecentProductsCard } from '../components/admin/RecentProductsCard';
-import { MOCK_PRODUCTS } from '../constants/mockProducts';
 import { STORE_INFO } from '../constants/store';
+import { getApiErrorMessage } from '../services/api';
+import { listAdminProducts } from '../services/productsService';
+import type { Product } from '../types/Product';
 import {
   computeCatalogMetrics,
   getCategoryDistribution,
   getRecentProducts,
 } from '../utils/adminMetrics';
-import { formatPriceBRL } from '../utils/products';
+import { formatPriceBRL, normalizeSearchText } from '../utils/products';
 
 export const AdminDashboard = () => {
   const navigate = useNavigate();
+  const [products, setProducts] = useState<readonly Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadCount, setReloadCount] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const filteredProducts = useMemo(() => {
-    const normalized = searchTerm.trim().toLowerCase();
-    if (!normalized) return MOCK_PRODUCTS;
-    return MOCK_PRODUCTS.filter((product) =>
-      product.name.toLowerCase().includes(normalized),
-    );
-  }, [searchTerm]);
+  useEffect(() => {
+    let isMounted = true;
 
-  const metrics = useMemo(
-    () => computeCatalogMetrics(MOCK_PRODUCTS),
-    [],
-  );
+    const loadProducts = async () => {
+      try {
+        const data = await listAdminProducts();
+        if (isMounted) {
+          setProducts(data);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setLoadError(
+            getApiErrorMessage(
+              error,
+              'Não foi possível carregar os dados do catálogo.',
+            ),
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadProducts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [reloadCount]);
+
+  const handleRetry = () => {
+    setIsLoading(true);
+    setLoadError(null);
+    setReloadCount((prev) => prev + 1);
+  };
+
+  const filteredProducts = useMemo(() => {
+    const normalized = normalizeSearchText(searchTerm);
+    if (!normalized) return products;
+    return products.filter((product) =>
+      normalizeSearchText(product.name).includes(normalized),
+    );
+  }, [products, searchTerm]);
+
+  const metrics = useMemo(() => computeCatalogMetrics(products), [products]);
 
   const categoryDistribution = useMemo(
-    () => getCategoryDistribution(MOCK_PRODUCTS),
-    [],
+    () => getCategoryDistribution(products),
+    [products],
   );
 
   const recentProducts = useMemo(
@@ -61,6 +102,25 @@ export const AdminDashboard = () => {
           </Typography>
         </Box>
 
+        {isLoading && <LinearProgress />}
+
+        {loadError && (
+          <Alert
+            severity="error"
+            action={
+              <Button
+                color="inherit"
+                size="small"
+                onClick={handleRetry}
+              >
+                Tentar novamente
+              </Button>
+            }
+          >
+            {loadError}
+          </Alert>
+        )}
+
         <Grid container spacing={2.5}>
           <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
             <KpiCard
@@ -83,7 +143,7 @@ export const AdminDashboard = () => {
 
           <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
             <KpiCard
-              title="Indisponíveis"
+              title="Esgotados"
               value={metrics.unavailableCount}
               subtitle="itens fora da vitrine"
               icon={<RemoveShoppingCartOutlinedIcon fontSize="small" />}
