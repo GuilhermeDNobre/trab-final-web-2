@@ -7,6 +7,7 @@ import type { Model } from 'mongoose';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Admin } from '../src/admins/admin.schema.js';
+import { LoginRateLimitGuard } from '../src/auth/login-rate-limit.guard.js';
 import type { Product } from '../src/products/schemas/product.schema.js';
 import { MAX_IMAGE_SIZE_BYTES, R2_S3_CLIENT } from '../src/storage/storage.constants.js';
 
@@ -60,6 +61,7 @@ describe('Gean Bebidas API (e2e)', () => {
   beforeEach(async () => {
     r2Send.mockReset();
     r2Send.mockResolvedValue({});
+    app.get(LoginRateLimitGuard).reset();
 
     await Promise.all([adminModel.deleteMany({}), productModel.deleteMany({})]);
     await adminModel.create({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
@@ -80,11 +82,13 @@ describe('Gean Bebidas API (e2e)', () => {
 
   const auth = () => ({ Authorization: `Bearer ${token}` });
 
-  describe('health and CORS', () => {
-    it('reports the database connection', async () => {
+  describe('health, security headers and CORS', () => {
+    it('reports the database connection and sets Helmet security headers', async () => {
       const response = await request(app.getHttpServer()).get('/health').expect(200);
 
       expect(response.body).toEqual({ status: 'ok', database: 'connected' });
+      expect(response.headers['x-content-type-options']).toBe('nosniff');
+      expect(response.headers['x-powered-by']).toBeUndefined();
     });
 
     it('allows every origin listed in CORS_ORIGIN and blocks others', async () => {
@@ -261,6 +265,33 @@ describe('Gean Bebidas API (e2e)', () => {
 
       await adminModel.deleteMany({});
       await request(app.getHttpServer()).get('/auth/me').set(auth()).expect(401);
+    });
+
+    it('rate-limits repeated login attempts per client IP with 429 and Retry-After', async () => {
+      const attackerIp = '203.0.113.10';
+
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        await request(app.getHttpServer())
+          .post('/auth/login')
+          .set('X-Forwarded-For', attackerIp)
+          .send({ email: ADMIN_EMAIL, password: 'wrong' })
+          .expect(401);
+      }
+
+      const blocked = await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('X-Forwarded-For', attackerIp)
+        .send({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD })
+        .expect(429);
+
+      expect(blocked.headers['retry-after']).toBeDefined();
+
+      // Another IP behind the proxy is still allowed
+      await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('X-Forwarded-For', '203.0.113.11')
+        .send({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD })
+        .expect(200);
     });
   });
 
