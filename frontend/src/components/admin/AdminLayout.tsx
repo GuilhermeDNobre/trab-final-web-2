@@ -47,7 +47,8 @@ export const AdminLayout = ({
   const [mobileOpen, setMobileOpen] = useState(false);
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { admin, logout } = useAuth();
+  const adminInitial = admin?.email?.charAt(0).toUpperCase() || 'A';
 
   const handleLogout = () => {
     logout();
@@ -176,7 +177,11 @@ export const AdminLayout = ({
             px: 1,
           }}
         >
-          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+          <Stack
+            direction="row"
+            spacing={1.5}
+            sx={{ alignItems: 'center', minWidth: 0 }}
+          >
             <Avatar
               sx={{
                 width: 34,
@@ -184,16 +189,22 @@ export const AdminLayout = ({
                 bgcolor: 'primary.main',
                 fontSize: 14,
                 fontWeight: 700,
+                flexShrink: 0,
               }}
             >
-              A
+              {adminInitial}
             </Avatar>
-            <Box>
+            <Box sx={{ minWidth: 0 }}>
               <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
                 Administrador
               </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Conta Admin
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                noWrap
+                sx={{ display: 'block' }}
+              >
+                {admin?.email ?? 'Conta Admin'}
               </Typography>
             </Box>
           </Stack>

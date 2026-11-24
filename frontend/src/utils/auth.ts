@@ -41,8 +41,8 @@ export const validateLoginForm = (values: LoginFormValues): LoginFormErrors => {
     errors.email = 'Informe um e-mail válido.';
   }
 
-  if (values.password.length < 4) {
-    errors.password = 'A senha deve ter pelo menos 4 caracteres.';
+  if (!values.password) {
+    errors.password = 'Informe sua senha.';
   }
 
   return errors;

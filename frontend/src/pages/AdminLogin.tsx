@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link as RouterLink, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import {
   Alert,
   Box,
@@ -19,6 +20,7 @@ import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { STORE_INFO } from '../constants/store';
 import { useAuth } from '../hooks/useAuth';
+import { getApiErrorMessage } from '../services/api';
 import {
   hasLoginFormErrors,
   validateLoginForm,
@@ -31,7 +33,7 @@ interface LocationState {
 }
 
 export const AdminLogin = () => {
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated, isLoading, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const redirectTo =
@@ -46,7 +48,7 @@ export const AdminLogin = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (isAuthenticated) {
+  if (!isLoading && isAuthenticated) {
     return <Navigate to={redirectTo} replace />;
   }
 
@@ -81,8 +83,17 @@ export const AdminLogin = () => {
     try {
       await login(values);
       void navigate(redirectTo, { replace: true });
-    } catch {
-      setSubmitError('Não foi possível entrar. Verifique suas credenciais.');
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        setSubmitError('E-mail ou senha inválidos.');
+      } else {
+        setSubmitError(
+          getApiErrorMessage(
+            error,
+            'Não foi possível entrar. Verifique suas credenciais.',
+          ),
+        );
+      }
     } finally {
       setIsSubmitting(false);
     }
