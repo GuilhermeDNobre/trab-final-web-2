@@ -5,6 +5,7 @@ import { AdminsModule } from '../admins/admins.module.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
+import { LoginRateLimitGuard } from './login-rate-limit.guard.js';
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { JwtAuthGuard } from './jwt-auth.guard.js';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtAuthGuard],
+  providers: [AuthService, JwtAuthGuard, LoginRateLimitGuard],
   exports: [JwtModule, JwtAuthGuard],
 })
 export class AuthModule {}
